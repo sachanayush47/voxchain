@@ -1,15 +1,17 @@
 # VoxkitPipeline
 
 ::: voxkit.core.pipeline
-    options:
-      members:
-        - VoxkitPipeline
-        - PipelineConfig
+
+## Client output
+
+::: voxkit.output
 
 ## Building blocks
+
+::: voxkit.core.replies
+
+::: voxkit.core.turn_gate
 
 ::: voxkit.core.text
 
 ::: voxkit.core.agent
-
-::: voxkit.core.turn_gate

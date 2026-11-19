@@ -1,76 +1,40 @@
-"""voxkit: a thin, event-driven library for building real-time voice agents.
+"""voxkit: a thin, event-driven library for building real-time voice agents on LangChain/LangGraph.
 
-voxkit wires a streaming speech-to-text provider, any LangGraph agent, and a
-streaming text-to-speech provider into one turn-taking pipeline
-(:class:`~voxkit.core.pipeline.VoxkitPipeline`), handling audio-in/audio-out
-plumbing and barge-in (interrupt) so you don't have to.
+Two ways to build an agent:
 
-It is intentionally thin: no frame-based transport bus, no call/room
-management, no bundled VAD -- STT/TTS providers report voice activity
-themselves. If you already know LangChain/LangGraph, you already know how to
-build the "brain" of a voxkit voice agent.
+- :class:`~voxkit.core.pipeline.VoxkitPipeline` chains streaming speech-to-text, any
+  LangGraph agent and streaming text-to-speech.
+- :class:`~voxkit.realtime.pipeline.RealtimePipeline` runs one speech-to-speech model
+  that hears, reasons, calls LangChain tools and speaks.
 
-Quick start:
-    >>> from voxkit import VoxkitPipeline
-    >>> from voxkit.stt import SarvamSTTOptions, SarvamSTTProvider
-    >>> from voxkit.tts import SarvamTTSOptions, SarvamTTSProvider
-    >>> from langchain.agents import create_agent
-    >>>
-    >>> stt = SarvamSTTProvider(SarvamSTTOptions(api_key="...", model="saaras:v3", mode="transcribe"))
-    >>> tts = SarvamTTSProvider(SarvamTTSOptions(api_key="...", model="bulbul:v3",
-    ...                                          target_language_code="en-IN", speaker="priya"))
-    >>> agent = create_agent(model=..., tools=[])
-    >>>
-    >>> async def handle_tts_event(event):
-    ...     ...  # play event.audio, handle INTERRUPT, etc.
-    >>>
-    >>> pipeline = VoxkitPipeline(stt, tts, agent, handle_tts_event)
-    >>> await pipeline.run(microphone_stream())
-
-See the ``stt``, ``tts``, ``llm``, and ``turn`` subpackages for the provider
-interfaces and event types, and :class:`~voxkit.core.pipeline.VoxkitPipeline`
-for the orchestrator itself.
+Both send the client the same :mod:`voxkit.output` events.
 """
 
-from voxkit.core import PipelineConfig, VoxkitPipeline
-from voxkit.llm import LLMEvent, LLMEventType
-from voxkit.stt import (
-    SarvamSTTOptions,
-    SarvamSTTProvider,
-    STTEvent,
-    STTEventType,
-    STTOptions,
-    STTProvider,
-)
-from voxkit.tts import (
-    SarvamTTSOptions,
-    SarvamTTSProvider,
-    TTSEvent,
-    TTSEventType,
-    TTSOptions,
-    TTSProvider,
-)
+from voxkit.core import VoxkitPipeline
+from voxkit.output import Output, PlayAudio, ReplyFinished, StopPlayback, StreamClosed
+from voxkit.realtime import OpenAIRealtimeProvider, RealtimePipeline, RealtimeProvider
+from voxkit.stt import OpenAISTTProvider, SarvamSTTProvider, STTProvider
+from voxkit.tts import OpenAITTSProvider, SarvamTTSProvider, TTSProvider
 from voxkit.turn import EndOfTurnDetector, PipecatSmartTurnDetector
 
 __version__ = "0.0.1"
 
 __all__ = [
     "EndOfTurnDetector",
-    "LLMEvent",
-    "LLMEventType",
+    "OpenAIRealtimeProvider",
+    "OpenAISTTProvider",
+    "OpenAITTSProvider",
+    "Output",
     "PipecatSmartTurnDetector",
-    "PipelineConfig",
-    "STTEvent",
-    "STTEventType",
-    "STTOptions",
+    "PlayAudio",
+    "RealtimePipeline",
+    "RealtimeProvider",
+    "ReplyFinished",
     "STTProvider",
-    "SarvamSTTOptions",
     "SarvamSTTProvider",
-    "SarvamTTSOptions",
     "SarvamTTSProvider",
-    "TTSEvent",
-    "TTSEventType",
-    "TTSOptions",
+    "StopPlayback",
+    "StreamClosed",
     "TTSProvider",
     "VoxkitPipeline",
 ]

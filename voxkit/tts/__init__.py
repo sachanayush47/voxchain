@@ -1,28 +1,18 @@
-"""Text-to-speech providers and the :class:`~voxkit.tts.base.TTSProvider` interface."""
+"""Text-to-speech providers and the interface they implement."""
 
-from voxkit.tts.base import TTSEvent, TTSEventType, TTSOptions, TTSProvider
-from voxkit.tts.sarvam import (
-    SarvamTTSAudioBitrate,
-    SarvamTTSAudioCodec,
-    SarvamTTSLanguageCode,
-    SarvamTTSModel,
-    SarvamTTSOptions,
-    SarvamTTSProvider,
-    SarvamTTSSampleRate,
-    SarvamTTSSpeaker,
-)
+from voxkit.session import SessionClosed
+from voxkit.tts.base import TTSProvider
+from voxkit.tts.events import AudioChunk, Flushed, TTSEvent
+from voxkit.tts.openai import VERBATIM_INSTRUCTIONS, OpenAITTSProvider
+from voxkit.tts.sarvam import SarvamTTSProvider
 
 __all__ = [
-    "SarvamTTSAudioBitrate",
-    "SarvamTTSAudioCodec",
-    "SarvamTTSLanguageCode",
-    "SarvamTTSModel",
-    "SarvamTTSOptions",
+    "VERBATIM_INSTRUCTIONS",
+    "AudioChunk",
+    "Flushed",
+    "OpenAITTSProvider",
     "SarvamTTSProvider",
-    "SarvamTTSSampleRate",
-    "SarvamTTSSpeaker",
+    "SessionClosed",
     "TTSEvent",
-    "TTSEventType",
-    "TTSOptions",
     "TTSProvider",
 ]

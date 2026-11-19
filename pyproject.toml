@@ -5,12 +5,8 @@ description = "A python library for building voice agents"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "deepgram-sdk>=7.4.0",
-    "httpx>=0.28.1",
     "langchain>=1.3.11",
-    "langchain-openai>=1.3.3",
-    "python-dotenv>=1.2.2",
-    "sarvamai>=0.1.28",
+    "websockets>=15.0.1",
 ]
 
 [project.optional-dependencies]
@@ -19,6 +15,11 @@ docs = [
     "mkdocs-material>=9.6.0",
     "mkdocstrings[python]>=0.27.0",
 ]
+vad = [
+    "huggingface-hub>=1.33.0",
+    "numpy>=2.5.3",
+    "onnxruntime>=1.30.0",
+]
 smart-turn = [
     "huggingface-hub>=1.33.0",
     "numpy>=2.5.3",
@@ -26,16 +27,30 @@ smart-turn = [
     "transformers>=5.18.0",
 ]
 all = [
-    "voxkit[smart-turn]",
+    "voxkit[vad,smart-turn]",
 ]
+
+[tool.setuptools.packages.find]
+include = ["voxkit*"]  # Only the library; docs output, tests and scripts stay out of the wheel
 
 [dependency-groups]
 dev = [
     "langchain-groq>=1.1.3",
     "pre-commit>=4.6.2",
+    "pytest>=8.4.0",
+    "pytest-asyncio>=1.2.0",
     "sounddevice>=0.5.5",
-    "voxkit[smart-turn]",
+    "python-dotenv>=1.2.2",
+    "voxkit[vad,smart-turn]",
 ]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"  # Coroutine tests need no decorator
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "--strict-markers"
+faulthandler_timeout = 30  # A hung async test dumps its stack instead of stalling the run
 
 [tool.ruff]
 line-length = 120
@@ -44,16 +59,16 @@ extend-exclude = ["site"]
 
 [tool.ruff.lint]
 select = [
-    "E",    # pycodestyle errors
-    "W",    # pycodestyle warnings
-    "F",    # pyflakes
-    "I",    # isort
-    "UP",   # pyupgrade
-    "B",    # flake8-bugbear
-    "C4",   # flake8-comprehensions
-    "SIM",  # flake8-simplify
-    "RUF",  # ruff-specific
-    "D",    # pydocstyle -- docstrings are the published API reference, so they're linted
+    "E",    # Style errors (pycodestyle)
+    "W",    # Style warnings (pycodestyle)
+    "F",    # Unused and undefined names (pyflakes)
+    "I",    # Import order (isort)
+    "UP",   # Modern syntax (pyupgrade)
+    "B",    # Likely bugs (flake8-bugbear)
+    "C4",   # Comprehensions (flake8-comprehensions)
+    "SIM",  # Simplifications (flake8-simplify)
+    "RUF",  # Ruff's own rules
+    "D",    # Docstrings (pydocstyle): they are the published API reference
 ]
 ignore = [
     "D107",  # __init__ docstring: mkdocstrings merges init into the class, which documents itself
@@ -67,7 +82,8 @@ convention = "google"
 "main.py" = ["D100", "D103"]
 # Intentionally-empty stubs (see AGENTS.md) -- nothing to document yet.
 "voxkit/exceptions.py" = ["D100"]
-"voxkit/vad/*" = ["D100", "D104"]
+"voxkit/vad/base.py" = ["D100"]
+"tests/*" = ["D101", "D102", "D103", "D105", "D107"]  # Test doubles need no docstrings
 
 [tool.uv.sources]
 voxkit = { workspace = true }

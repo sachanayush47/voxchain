@@ -28,10 +28,12 @@ nav:
   - Architecture: architecture.md
   - API Reference:
       - VoxkitPipeline: reference/pipeline.md
+      - RealtimePipeline: reference/realtime.md
       - STT: reference/stt.md
       - TTS: reference/tts.md
-      - LLM events: reference/llm.md
       - End-of-turn detection: reference/turn.md
+      - Voice activity detection: reference/vad.md
+      - Sessions, protocols, audio: reference/shared.md
 
 plugins:
   - search

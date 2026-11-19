@@ -1,53 +1,52 @@
 # Architecture
 
+voxkit is built from small pieces with one job each. The pipelines and providers wire them to I/O; the pieces themselves are pure and unit-tested on their own.
+
+## Cascaded pipeline
+
 ```
 audio in ──▶ STTProvider ──▶ VoxkitPipeline ──▶ LangGraph agent
-                                    │                  │
-                                    │  sentence-by-     │ streamed
-                                    │  sentence         ▼ tokens
-                                    └──────────▶ TTSProvider ──▶ audio out (your callback)
+                                  │                    │ streamed tokens
+                                  └── sentences ──▶ TTSProvider ──▶ your callback
 ```
 
-1. **You feed raw audio** into `pipeline.run(audio_stream)`. It's forwarded to the STT provider.
-2. **STT emits [`STTEvent`][voxkit.stt.base.STTEvent]s** — `SPEECH_START`/`SPEECH_END` (voice activity), `PARTIAL_TRANSCRIPT`, `FINAL_TRANSCRIPT`, `STREAM_CLOSED`.
-3. **On `FINAL_TRANSCRIPT`** (once any [end-of-turn check](#end-of-turn-check) agrees the user is done), the pipeline starts a new agent turn: it streams your LangGraph agent's reply (`agent.astream(..., stream_mode="messages")`) and forwards each complete sentence to TTS as soon as a sentence/clause boundary is detected — so speech synthesis starts well before the agent has finished generating the full reply. Only the assistant's own text is spoken (tool results are never read aloud), and markdown/HTML (`**bold**`, tables, `<br>`) is stripped first; fragments with nothing speakable are skipped. Turns run one at a time, in order.
-4. **TTS emits [`TTSEvent`][voxkit.tts.base.TTSEvent]s** — `AUDIO` (a synthesized chunk), `END_OF_TURN`, `INTERRUPT`, `STREAM_CLOSED` — which the pipeline forwards verbatim to your `callback`. You decide what to do with each: play `AUDIO`, stop playback on `INTERRUPT`, mark the turn done on `END_OF_TURN`.
-5. **Barge-in:** if the STT provider reports `SPEECH_START` while the agent is still generating or TTS is still speaking, the pipeline cancels the in-flight turn, tells TTS to interrupt, and notifies your callback — all before the next turn starts. If the reply has already been fully synthesized, only your callback is notified (to stop any audio still playing client-side). If the user barges in within `resume_window` seconds (default `2.0`) of first hearing the reply, they were most likely still mid-sentence and the end-of-turn call was premature — so their previous turn isn't dropped: it's merged with what they say next and answered as one turn ("I want to book a ticket to" + "Bangkok from Delhi"). A barge-in after the window is a real interruption ("stop", "ok thanks") and the previous turn is dropped. `resume_window=0` merges only replies the user never heard; `None` never merges. Pass `config=PipelineConfig(interrupt=False)` to [`VoxkitPipeline`][voxkit.core.pipeline.VoxkitPipeline] to disable this and let turns run to completion regardless of new speech. Speech during a reply is then answered after it.
+1. **Audio in** goes to the [`STTProvider`][voxkit.stt.base.STTProvider] and to the optional end-of-turn detector.
+2. **STT events** ([`SpeechStarted`][voxkit.stt.events.SpeechStarted], [`SpeechStopped`][voxkit.stt.events.SpeechStopped], [`FinalTranscript`][voxkit.stt.events.FinalTranscript]) feed the [`EndOfTurnGate`][voxkit.core.turn_gate.EndOfTurnGate], which decides when the user's turn is complete.
+3. **A completed turn** starts an agent reply. It streams to the [`TTSProvider`][voxkit.tts.base.TTSProvider] sentence by sentence ([`SentenceSegmenter`][voxkit.core.text.SentenceSegmenter]), ending with `flush()`. Replies run one at a time, in order.
+4. **TTS events** ([`AudioChunk`][voxkit.tts.events.AudioChunk], [`Flushed`][voxkit.tts.events.Flushed]) become `PlayAudio` and `ReplyFinished` for the client. They are delivered from their own task, so a slow callback never delays barge-in.
+5. **Barge-in:** on `SpeechStarted` while a reply is active or still playing, [`ReplyTracker`][voxkit.core.replies.ReplyTracker] says what to undo. The reply tasks are cancelled, queued audio is dropped, the client gets `StopPlayback`, and TTS is told to `cancel()`. A reply the user heard for no longer than `resume_window` hands its user text back to the gate, to be merged with what they say next.
 
-    Because voxkit bundles no VAD of its own, *when* `SPEECH_START` fires is entirely the STT provider's decision — so how twitchy barge-in feels is tuned on the provider's options, not on the pipeline. With [`SarvamSTTOptions`][voxkit.stt.sarvam.SarvamSTTOptions] the relevant knobs are `interrupt_min_speech_frames` (how much speech must accumulate before a barge-in counts), `high_vad_sensitivity` plus `positive_speech_threshold`/`negative_speech_threshold` (what counts as speech at all), and `start_speech_volume_threshold` (a dB gate that keeps background noise from triggering turns).
+Because voxkit bundles no pipeline-level VAD, *when* `SpeechStarted` fires is the STT provider's call. Tune barge-in on the provider: Sarvam's `extra_params` (e.g. `interrupt_min_speech_frames`), or `OpenAISTTProvider`'s `vad_threshold` / `vad_start_ms`.
+
+## Speech-to-speech pipeline
+
+```
+audio in ──▶ RealtimeProvider (hears, reasons, speaks) ──▶ RealtimePipeline ──▶ your callback
+                      ▲                                          │
+                      └──────── tool results ◀── LangChain tools ◀┘
+```
+
+1. **Audio in** is resampled to the provider's `input_sample_rate` and sent straight to it. Turn detection and response creation happen on the vendor's side.
+2. **Playback** runs in its own task. [`PlaybackTracker`][voxkit.realtime.playback.PlaybackTracker] notes when each chunk reached the client, so it knows how much of every item was heard, even across playback gaps.
+3. **Barge-in:** on `SpeechStarted` the active response is discarded and its queued audio dropped, and the client gets `StopPlayback`. The item being heard is truncated to the milliseconds heard; items the user heard none of are deleted.
+4. **Tools:** [`ToolRunner`][voxkit.realtime.tools.ToolRunner] runs a response's calls concurrently once it ends. Results go back through `send_function_result`, then `request_response`. [`ResponseGate`][voxkit.realtime.response_gate.ResponseGate] skips that request if a later response already sees the results. Calls from an interrupted response are answered with an error and not run.
+5. **Session continuity:** the provider replays its [`ConversationHistory`][voxkit.realtime.history.ConversationHistory] into a fresh session after a drop or before the 60-minute limit.
+
+## Shared pieces
+
+- [`ProviderSession`][voxkit.session.ProviderSession] is each websocket provider's plumbing. The provider passes in `open` and `handle` (plus optional hooks) and gets one event stream back. Underneath it:
+    - [`ReconnectingSession`][voxkit.session.ReconnectingSession] reconnects on drops (5 attempts) and treats planned replacements, like a cancel or the 60-minute swap, as free.
+    - [`LiveSocket`][voxkit.session.LiveSocket] holds the current socket. Its sends either drop while reconnecting (audio) or wait for the new socket (tool results, text to speak).
+- [`OutputChannel`][voxkit.output.OutputChannel] delivers both pipelines' client events from their own task. It models when each chunk plays and tells the pipeline's tracker.
+- [`VoiceGate`][voxkit.vad.gate.VoiceGate] turns a local VAD's probabilities into speech segments, for providers whose vendor doesn't report voice activity.
+- `voxkit/protocols/` holds each vendor's wire vocabulary: URLs, message types as `StrEnum`s, and handshakes.
 
 ## Connection drops and logging
 
-The Sarvam providers reconnect on their own when a websocket drops (5 attempts, 1 s apart); the pipeline keeps running and you lose at most the audio in flight. `STREAM_CLOSED` is emitted only when reconnecting fails — on STT that stops the pipeline.
+Every provider reconnects on its own; you lose at most the audio in flight. [`SessionClosed`][voxkit.session.SessionClosed] is emitted only when reconnecting fails, and the pipeline then stops and sends `StreamClosed`.
 
-voxkit logs routine activity at `DEBUG` — the user's transcript and the agent's full reply on `voxkit.core.pipeline`, voice activity on `voxkit.stt.sarvam` — and only real failures at `WARNING`/`ERROR`. To watch a conversation:
+voxkit logs routine activity at `DEBUG` and only real problems at `WARNING`/`ERROR`:
 
 ```python
 logging.getLogger("voxkit").setLevel(logging.DEBUG)
 ```
-
-## End-of-turn check
-
-STT providers end a speech segment on silence alone, so a user who pauses mid-thought ("I'd like to book an appointment for... um...") gets their half-sentence finalized and answered. Pass an [`EndOfTurnDetector`][voxkit.turn.base.EndOfTurnDetector] as `VoxkitPipeline(..., end_of_turn=...)` to add a second check. voxkit ships [`PipecatSmartTurnDetector`][voxkit.turn.smart_turn.PipecatSmartTurnDetector], which runs pipecat's [Smart Turn v3](https://github.com/pipecat-ai/smart-turn) audio model locally on CPU (~20 ms per check, no API key):
-
-- The pipeline feeds every chunk of the input audio stream to the detector (the same bytes it forwards to STT). On `SPEECH_START` for a fresh turn, the detector drops older audio, keeping a 1 s pre-roll.
-- On each `FINAL_TRANSCRIPT`, the transcript is appended to a held transcript and the detector scores the last 8 s of the turn's audio — intonation, trailing fillers, cut-off words.
-- **Complete** (probability ≥ `threshold`, default `0.5`) → the held text starts an agent turn immediately.
-- **Incomplete** → the pipeline waits `end_of_turn_timeout` seconds (default `2.0`). If the user speaks again (`SPEECH_START`), the wait pauses; their next `FINAL_TRANSCRIPT` is appended and the turn re-scored on the longer audio. If the timeout expires, the held text is sent anyway, so the user is never left unanswered. A `SPEECH_END` with no new transcript (e.g. noise) resumes the wait.
-- If the detector raises, the turn is treated as complete.
-- A wrong "complete" verdict is recoverable: if the user keeps talking within `resume_window` of the reply starting, barge-in cancels it and the text is merged into the continuation (see step 5 above).
-- `PipecatSmartTurnDetector` logs each score at `DEBUG` (`voxkit.turn.smart_turn`), which helps tune `threshold`.
-
-Smart Turn needs mono 16-bit PCM (`pcm_s16le`) input. It's trained on 16 kHz audio; 8 kHz (telephony) input is upsampled but judged less reliably. Install with `pip install "voxkit[smart-turn]"` (or `"voxkit[all]"`); the ~8 MB model downloads from Hugging Face on first use. Off by default — consider also lengthening the STT provider's own silence window (`negative_frames_count`/`negative_frames_window` on [`SarvamSTTOptions`][voxkit.stt.sarvam.SarvamSTTOptions]).
-
-## Event types
-
-| Module | Type | Values |
-|---|---|---|
-| `voxkit.stt` | `STTEventType` | `SPEECH_START`, `SPEECH_END`, `PARTIAL_TRANSCRIPT`, `FINAL_TRANSCRIPT`, `STREAM_CLOSED` |
-| `voxkit.llm` | `LLMEventType` | `SENTENCE`, `END_OF_TURN`, `INTERRUPT` |
-| `voxkit.tts` | `TTSEventType` | `AUDIO`, `END_OF_TURN`, `INTERRUPT`, `STREAM_CLOSED` |
-
-## Adding a new provider
-
-Implement [`STTProvider`][voxkit.stt.base.STTProvider] or [`TTSProvider`][voxkit.tts.base.TTSProvider] — both are small interfaces (`connect`, `send`/`receive` for STT, `connect`/`synthesize` for TTS, plus `close`) that push/pull typed events through `asyncio.Queue`s. Providers should recover from dropped connections themselves and emit `STREAM_CLOSED` only when they can't. Nothing else in the pipeline needs to change; `VoxkitPipeline` only depends on these interfaces, not on any specific vendor.

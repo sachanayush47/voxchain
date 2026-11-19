@@ -37,16 +37,7 @@ class EndOfTurnGate:
         timeout: float,
         commit: Callable[[str], None],
     ) -> None:
-        """Create the gate.
-
-        Args:
-            detector: The end-of-turn check, or ``None`` to commit every
-                transcript immediately.
-            timeout: Seconds to wait after an incomplete verdict before
-                committing anyway.
-            commit: Called (synchronously) with the full text of each
-                completed user turn.
-        """
+        """Create the gate."""
         self.detector = detector
         self.timeout = timeout
         self._commit = commit
@@ -54,11 +45,7 @@ class EndOfTurnGate:
         self._task: asyncio.Task | None = None
 
     def push_audio(self, chunk: bytes) -> None:
-        """Forward an input audio chunk to the detector, if any.
-
-        Args:
-            chunk: Raw audio bytes from the input stream.
-        """
+        """Forward an input audio chunk to the detector, if any."""
         if self.detector is not None:
             self.detector.push_audio(chunk)
 
@@ -74,11 +61,7 @@ class EndOfTurnGate:
             self._start(check=False)
 
     def on_transcript(self, text: str) -> None:
-        """Handle a finalized transcript.
-
-        Args:
-            text: The transcript text (already stripped, non-empty).
-        """
+        """Handle a finalized transcript."""
         self._held = f"{self._held} {text}".strip()
         if self.detector is None:
             self._cancel()
@@ -92,9 +75,6 @@ class EndOfTurnGate:
 
         It is placed ahead of anything already held and is committed together
         with the user's next words (or after the timeout if none come).
-
-        Args:
-            text: The cancelled turn's text.
         """
         self._held = f"{text} {self._held}".strip()
 
@@ -104,36 +84,25 @@ class EndOfTurnGate:
         self._held = ""
 
     def _cancel(self) -> None:
-        """Stop any in-flight check or wait, keeping the held text."""
         if self._task is not None and not self._task.done():
             self._task.cancel()
 
     def _start(self, check: bool) -> None:
-        """(Re)start deciding when to commit the held text.
-
-        Args:
-            check: Run the detector first; ``False`` goes straight to the wait.
-        """
         self._cancel()
         self._task = asyncio.create_task(self._resolve(check))
 
     async def _resolve(self, check: bool) -> None:
-        """Commit the held text once judged complete or once the wait expires.
-
-        Args:
-            check: Run the detector before waiting.
-        """
         complete = False
         if check and self.detector is not None:
             try:
                 complete = await self.detector.is_end_of_turn(self._held)
             except Exception:
-                logger.exception("EndOfTurnGate: detector failed, treating turn as complete")
+                logger.exception("EndOfTurnGate: Detector failed, treating turn as complete")
                 complete = True
         if not complete:
             if check:
-                logger.debug("EndOfTurnGate: holding %r, sounds incomplete", self._held)
-            logger.debug("EndOfTurnGate: waiting %.1fs for the user to continue", self.timeout)
+                logger.debug("EndOfTurnGate: Holding %r, sounds incomplete", self._held)
+            logger.debug("EndOfTurnGate: Waiting %.1fs for the user to continue", self.timeout)
             await asyncio.sleep(self.timeout)
 
         # No await between taking the text and committing it, so cancellation can't split them.
