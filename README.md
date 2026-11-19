@@ -1,10 +1,10 @@
-# voxkit
+# voxchain
 
 A thin, event-driven Python library for building real-time voice agents on **LangChain / LangGraph**.
 
-voxkit handles the hard parts of a voice conversation (streaming audio in and out, turn-taking, barge-in, reconnects) and leaves the "brain" to you. There are two ways to build an agent:
+voxchain handles the hard parts of a voice conversation (streaming audio in and out, turn-taking, barge-in, reconnects) and leaves the "brain" to you. There are two ways to build an agent:
 
-- **`VoxkitPipeline`** chains streaming speech-to-text, any LangGraph agent, and streaming text-to-speech.
+- **`VoxchainPipeline`** chains streaming speech-to-text, any LangGraph agent, and streaming text-to-speech.
 - **`RealtimePipeline`** runs one speech-to-speech model that hears, reasons, calls your LangChain tools and speaks.
 
 Both send your client the same small set of events, so playback code works with either.
@@ -14,12 +14,12 @@ Both send your client the same small set of events, so playback code works with 
 - **LangChain/LangGraph-first.** Bring any compiled graph (e.g. from `langchain.agents.create_agent`) or LangChain tools.
 - **Explicit events.** Providers and pipelines talk in small typed events, so turns, interrupts and lost sessions are easy to follow.
 
-> **Status:** pre-alpha (`0.0.1`); the API will change. Providers: Sarvam AI (STT, TTS) and OpenAI (STT, TTS, speech-to-speech).
+> **Status:** pre-alpha (`0.1.0`); the API will change. Providers: Sarvam AI (STT, TTS) and OpenAI (STT, TTS, speech-to-speech).
 
 ## Installation
 
 ```bash
-pip install voxkit
+pip install voxchain
 ```
 
 | Extra | Adds | Needed for |
@@ -39,7 +39,7 @@ import os
 from langchain.agents import create_agent
 from langchain_groq import ChatGroq
 
-from voxkit import Output, PlayAudio, SarvamSTTProvider, SarvamTTSProvider, StopPlayback, VoxkitPipeline
+from voxchain import Output, PlayAudio, SarvamSTTProvider, SarvamTTSProvider, StopPlayback, VoxchainPipeline
 
 stt = SarvamSTTProvider(api_key=os.environ["SARVAM_API_KEY"], language_code="en-IN", sample_rate=16000)
 tts = SarvamTTSProvider(api_key=os.environ["SARVAM_API_KEY"], speaker="priya", language_code="en-IN")
@@ -55,14 +55,14 @@ async def play(event: Output) -> None:
 
 
 async def main() -> None:
-    pipeline = VoxkitPipeline(stt, tts, agent, play)
+    pipeline = VoxchainPipeline(stt, tts, agent, play)
     await pipeline.run(microphone_audio_stream())   # PCM16 at stt.sample_rate
 
 
 asyncio.run(main())
 ```
 
-[`main.py`](main.py) is a complete, runnable version using `sounddevice` for the microphone and speakers. `VOXKIT_PROVIDER=openai` switches it to OpenAI STT/TTS, and `VOXKIT_PROVIDER=openai-realtime` to speech-to-speech.
+[`main.py`](main.py) is a complete, runnable version using `sounddevice` for the microphone and speakers. `VOXCHAIN_PROVIDER=openai` switches it to OpenAI STT/TTS, and `VOXCHAIN_PROVIDER=openai-realtime` to speech-to-speech.
 
 ### What your callback receives
 
@@ -106,7 +106,7 @@ All providers reconnect on their own when their connection drops (5 attempts). `
 ## How the cascaded pipeline works
 
 ```
-audio in ──▶ STTProvider ──▶ VoxkitPipeline ──▶ LangGraph agent
+audio in ──▶ STTProvider ──▶ VoxchainPipeline ──▶ LangGraph agent
                                   │                    │ streamed tokens
                                   └── sentences ──▶ TTSProvider ──▶ your callback
 ```
@@ -115,19 +115,19 @@ audio in ──▶ STTProvider ──▶ VoxkitPipeline ──▶ LangGraph agen
 2. A final transcript starts an agent turn. The reply streams to TTS **sentence by sentence**, so speech starts before the agent finishes. Only the assistant's own text is spoken (never tool output), with markdown stripped. Replies run one at a time, in order.
 3. **Barge-in:** when the user starts talking over a reply, the reply is cancelled, TTS drops its pending work, and your callback gets `StopPlayback`. If they interrupt within `resume_window` seconds (default 2) of first hearing the reply, the end-of-turn call was probably premature. Their previous turn is then merged with what they say next ("I want a ticket to" + "Bangkok"). Later interruptions ("stop", "ok thanks") drop it. `interrupt=False` lets replies finish.
 
-`VoxkitPipeline(stt, tts, agent, callback, *, thread_id="default", interrupt=True, resume_window=2.0, end_of_turn=None, end_of_turn_timeout=2.0)`. `thread_id` keys the agent's checkpointed memory; use one per conversation.
+`VoxchainPipeline(stt, tts, agent, callback, *, thread_id="default", interrupt=True, resume_window=2.0, end_of_turn=None, end_of_turn_timeout=2.0)`. `thread_id` keys the agent's checkpointed memory; use one per conversation.
 
 ### End-of-turn check
 
 Voice detection ends a turn on silence alone, so a pause mid-sentence ("book it for... um...") gets answered too early. [Smart Turn v3](https://github.com/pipecat-ai/smart-turn) is a small local audio model that judges from intonation whether the user has finished:
 
 ```python
-from voxkit import PipecatSmartTurnDetector
+from voxchain import PipecatSmartTurnDetector
 
-pipeline = VoxkitPipeline(stt, tts, agent, play, end_of_turn=PipecatSmartTurnDetector(sample_rate=16000))
+pipeline = VoxchainPipeline(stt, tts, agent, play, end_of_turn=PipecatSmartTurnDetector(sample_rate=16000))
 ```
 
-A transcript that sounds unfinished is held for up to `end_of_turn_timeout` seconds of silence while more speech is appended and re-scored. It needs `pip install "voxkit[smart-turn]"`. Use one detector per pipeline.
+A transcript that sounds unfinished is held for up to `end_of_turn_timeout` seconds of silence while more speech is appended and re-scored. It needs `pip install "voxchain[smart-turn]"`. Use one detector per pipeline.
 
 ## Speech-to-speech (OpenAI Realtime)
 
@@ -136,7 +136,7 @@ A transcript that sounds unfinished is held for up to `end_of_turn_timeout` seco
 ```python
 from langchain_core.tools import tool
 
-from voxkit import OpenAIRealtimeProvider, RealtimePipeline
+from voxchain import OpenAIRealtimeProvider, RealtimePipeline
 
 
 @tool
@@ -166,24 +166,24 @@ With either pipeline, use headphones or echo-cancelled audio capture. Otherwise 
 
 ## Logging
 
-voxkit logs routine activity at `DEBUG` (transcripts, replies, voice activity) and only real problems at `WARNING`/`ERROR`. To watch a conversation:
+voxchain logs routine activity at `DEBUG` (transcripts, replies, voice activity) and only real problems at `WARNING`/`ERROR`. To watch a conversation:
 
 ```python
-logging.getLogger("voxkit").setLevel(logging.DEBUG)
+logging.getLogger("voxchain").setLevel(logging.DEBUG)
 ```
 
 ## Adding a provider
 
-Implement the interface in `voxkit/stt/base.py`, `voxkit/tts/base.py` or `voxkit/realtime/base.py`. Compose the shared pieces rather than inheriting behaviour:
-- `ProviderSession` (`voxkit/session.py`) gives you the socket, reconnects and the event stream. You supply `open` (connect and configure) and `handle` (one message to events).
-- `VoiceGate` (`voxkit/vad/gate.py`) if the vendor doesn't report voice activity.
+Implement the interface in `voxchain/stt/base.py`, `voxchain/tts/base.py` or `voxchain/realtime/base.py`. Compose the shared pieces rather than inheriting behaviour:
+- `ProviderSession` (`voxchain/session.py`) gives you the socket, reconnects and the event stream. You supply `open` (connect and configure) and `handle` (one message to events).
+- `VoiceGate` (`voxchain/vad/gate.py`) if the vendor doesn't report voice activity.
 - For speech-to-speech, `ResponseGate` and `ConversationHistory`.
 
-Put the vendor's wire vocabulary (URLs, message types as `StrEnum`s, handshake) in `voxkit/protocols/<vendor>.py`. The existing providers are compact references. The pipelines only depend on the interfaces.
+Put the vendor's wire vocabulary (URLs, message types as `StrEnum`s, handshake) in `voxchain/protocols/<vendor>.py`. The existing providers are compact references. The pipelines only depend on the interfaces.
 
 ## Documentation
 
-API reference, generated from the docstrings: **[sachanayush47.github.io/voxkit](https://sachanayush47.github.io/voxkit/)**. Build it locally with `uv sync --extra docs && uv run mkdocs serve`.
+API reference, generated from the docstrings: **[sachanayush47.github.io/voxchain](https://sachanayush47.github.io/voxchain/)**. Build it locally with `uv sync --extra docs && uv run mkdocs serve`.
 
 ## Development
 
@@ -199,4 +199,4 @@ Contributor conventions (coding standards, design principles, testing) are in [`
 
 ## License
 
-TBD.
+MIT. See [`LICENSE`](LICENSE).

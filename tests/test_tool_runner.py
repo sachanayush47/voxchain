@@ -5,7 +5,7 @@ import json
 import pytest
 from langchain_core.tools import tool
 
-from voxkit.realtime import FunctionCall, ToolRunner, tool_spec
+from voxchain.realtime import FunctionCall, ToolRunner, tool_spec
 
 
 @tool

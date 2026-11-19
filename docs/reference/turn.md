@@ -1,5 +1,5 @@
 # End-of-turn detection
 
-::: voxkit.turn.base
+::: voxchain.turn.base
 
-::: voxkit.turn.smart_turn
+::: voxchain.turn.smart_turn

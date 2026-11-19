@@ -2,7 +2,7 @@
 
 import pytest
 
-from voxkit.realtime import OpenAIRealtimeProvider, ToolSpec
+from voxchain.realtime import OpenAIRealtimeProvider, ToolSpec
 
 
 def _config(**kwargs):

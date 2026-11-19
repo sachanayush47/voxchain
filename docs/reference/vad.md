@@ -1,5 +1,5 @@
 # Voice activity detection
 
-::: voxkit.vad.gate
+::: voxchain.vad.gate
 
-::: voxkit.vad.silero
+::: voxchain.vad.silero

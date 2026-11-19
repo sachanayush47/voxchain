@@ -6,7 +6,7 @@ import json
 import pytest
 import websockets
 
-import voxkit.session
+import voxchain.session
 
 CLOSE = object()
 
@@ -100,7 +100,7 @@ def settle():
 
 @pytest.fixture
 def no_reconnect_delay(monkeypatch):
-    monkeypatch.setattr(voxkit.session, "RECONNECT_DELAY_S", 0)
+    monkeypatch.setattr(voxchain.session, "RECONNECT_DELAY_S", 0)
 
 
 @pytest.fixture

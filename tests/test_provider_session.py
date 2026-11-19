@@ -2,7 +2,7 @@
 
 import asyncio
 
-from voxkit.session import ProviderSession, SessionClosed
+from voxchain.session import ProviderSession, SessionClosed
 
 
 def _session(server, **hooks):

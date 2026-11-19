@@ -3,7 +3,7 @@
 import math
 from array import array
 
-from voxkit.audio import PCM16Resampler
+from voxchain.audio import PCM16Resampler
 
 
 def _sine(n: int, rate: int) -> bytes:

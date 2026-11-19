@@ -1,6 +1,6 @@
 """ReplyTracker: which replies are live, and what a barge-in cancels or hands back."""
 
-from voxkit.core import ReplyTracker
+from voxchain.core import ReplyTracker
 
 
 def test_a_reply_is_active_until_its_audio_is_synthesized():

@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-from voxkit.realtime import OpenAIRealtimeProvider, ResponseDone, SessionClosed
+from voxchain.realtime import OpenAIRealtimeProvider, ResponseDone, SessionClosed
 
 
 class Clock:

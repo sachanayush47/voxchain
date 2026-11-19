@@ -2,7 +2,7 @@
 
 import asyncio
 
-from voxkit.output import OutputChannel, PlayAudio, ReplyFinished, StopPlayback, StreamClosed
+from voxchain.output import OutputChannel, PlayAudio, ReplyFinished, StopPlayback, StreamClosed
 
 SECOND = 48000  # Bytes of 24 kHz PCM16
 

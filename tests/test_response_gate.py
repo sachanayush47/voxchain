@@ -1,6 +1,6 @@
 """ResponseGate: a requested response is created once, never over the user, never as a duplicate."""
 
-from voxkit.realtime import ResponseGate
+from voxchain.realtime import ResponseGate
 
 
 def test_a_request_with_nothing_running_creates_immediately():

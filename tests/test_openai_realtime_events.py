@@ -2,7 +2,7 @@
 
 import base64
 
-from voxkit.realtime import (
+from voxchain.realtime import (
     AgentTranscript,
     AudioDelta,
     FunctionCall,

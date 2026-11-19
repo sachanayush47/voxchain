@@ -1,7 +1,7 @@
-site_name: voxkit
+site_name: voxchain
 site_description: A thin, event-driven Python library for building real-time voice agents on LangChain/LangGraph.
-repo_url: https://github.com/sachanayush47/voxkit
-repo_name: sachanayush47/voxkit
+repo_url: https://github.com/sachanayush47/voxchain
+repo_name: sachanayush47/voxchain
 
 theme:
   name: material
@@ -27,7 +27,7 @@ nav:
   - Home: index.md
   - Architecture: architecture.md
   - API Reference:
-      - VoxkitPipeline: reference/pipeline.md
+      - VoxchainPipeline: reference/pipeline.md
       - RealtimePipeline: reference/realtime.md
       - STT: reference/stt.md
       - TTS: reference/tts.md

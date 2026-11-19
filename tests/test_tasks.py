@@ -3,7 +3,7 @@
 import asyncio
 import logging
 
-from voxkit.tasks import run_until_first_exit
+from voxchain.tasks import run_until_first_exit
 
 
 async def test_the_first_loop_to_finish_cancels_the_rest():
@@ -30,6 +30,6 @@ async def test_a_failing_loop_is_logged_and_not_raised(caplog):
     async def forever():
         await asyncio.Event().wait()
 
-    with caplog.at_level(logging.ERROR, logger="voxkit.tasks"):
+    with caplog.at_level(logging.ERROR, logger="voxchain.tasks"):
         await asyncio.wait_for(run_until_first_exit("Pipeline", {"broken": broken(), "forever": forever()}), 1)
     assert "Pipeline: broken failed" in caplog.text

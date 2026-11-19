@@ -2,7 +2,7 @@
 
 import pytest
 
-from voxkit.session import ReconnectingSession, SessionLost
+from voxchain.session import ReconnectingSession, SessionLost
 
 
 async def _no_sleep(_):

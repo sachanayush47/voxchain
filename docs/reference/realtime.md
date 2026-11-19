@@ -2,26 +2,26 @@
 
 ## Pipeline
 
-::: voxkit.realtime.pipeline
+::: voxchain.realtime.pipeline
 
 ## Events
 
-::: voxkit.realtime.events
+::: voxchain.realtime.events
 
 ## Interface
 
-::: voxkit.realtime.base
+::: voxchain.realtime.base
 
 ## Building blocks
 
-::: voxkit.realtime.response_gate
+::: voxchain.realtime.response_gate
 
-::: voxkit.realtime.history
+::: voxchain.realtime.history
 
-::: voxkit.realtime.playback
+::: voxchain.realtime.playback
 
-::: voxkit.realtime.tools
+::: voxchain.realtime.tools
 
 ## OpenAI provider
 
-::: voxkit.realtime.openai
+::: voxchain.realtime.openai

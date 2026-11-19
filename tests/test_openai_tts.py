@@ -4,7 +4,7 @@ import asyncio
 import base64
 import logging
 
-from voxkit.tts import AudioChunk, Flushed, OpenAITTSProvider
+from voxchain.tts import AudioChunk, Flushed, OpenAITTSProvider
 
 
 def _tts(server, **kwargs):
@@ -107,7 +107,7 @@ async def test_a_rejected_request_moves_on_to_the_next_text(openai_server, settl
 async def test_a_paraphrase_is_logged(openai_server, settle, caplog):
     tts, _, reader, socket = await _start(openai_server)
     await tts.speak("Your appointment is at five.")
-    with caplog.at_level(logging.WARNING, logger="voxkit.tts.openai"):
+    with caplog.at_level(logging.WARNING, logger="voxchain.tts.openai"):
         _play(socket, "r1", transcript="Sure! Your appointment is at five.")
         await settle()
     assert "instead of" in caplog.text

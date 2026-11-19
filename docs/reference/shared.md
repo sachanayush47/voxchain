@@ -4,22 +4,22 @@ Pieces every provider composes.
 
 ## Sessions
 
-::: voxkit.session
+::: voxchain.session
 
 ## Shared events
 
-::: voxkit.events
+::: voxchain.events
 
 ## Running loops
 
-::: voxkit.tasks
+::: voxchain.tasks
 
 ## Vendor protocols
 
-::: voxkit.protocols.openai_realtime
+::: voxchain.protocols.openai_realtime
 
-::: voxkit.protocols.sarvam
+::: voxchain.protocols.sarvam
 
 ## Audio
 
-::: voxkit.audio
+::: voxchain.audio

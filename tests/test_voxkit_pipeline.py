@@ -1,14 +1,14 @@
-"""VoxkitPipeline: transcripts become spoken replies, and barge-in cancels, stops and merges correctly."""
+"""VoxchainPipeline: transcripts become spoken replies, and barge-in cancels, stops and merges correctly."""
 
 import asyncio
 
 from langchain_core.messages import AIMessage
 
-from voxkit import VoxkitPipeline
-from voxkit.output import PlayAudio
-from voxkit.session import SessionClosed
-from voxkit.stt import FinalTranscript, SpeechStarted, SpeechStopped, STTProvider
-from voxkit.tts import AudioChunk, Flushed, TTSProvider
+from voxchain import VoxchainPipeline
+from voxchain.output import PlayAudio
+from voxchain.session import SessionClosed
+from voxchain.stt import FinalTranscript, SpeechStarted, SpeechStopped, STTProvider
+from voxchain.tts import AudioChunk, Flushed, TTSProvider
 
 
 class ScriptedSTT(STTProvider):
@@ -93,7 +93,7 @@ class Harness:
             if isinstance(event, PlayAudio) and self.block_audio:
                 await self.unblock.wait()
 
-        self.pipeline = VoxkitPipeline(self.stt, self.tts, self.agent, callback, clock=lambda: self.now, **kwargs)
+        self.pipeline = VoxchainPipeline(self.stt, self.tts, self.agent, callback, clock=lambda: self.now, **kwargs)
 
     async def start(self):
         async def mic():

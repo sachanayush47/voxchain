@@ -1583,9 +1583,9 @@ wheels = [
 ]
 
 [[package]]
-name = "voxkit"
-version = "0.0.1"
-source = { virtual = "." }
+name = "voxchain"
+version = "0.1.0"
+source = { editable = "." }
 dependencies = [
     { name = "langchain" },
     { name = "websockets" },
@@ -1623,7 +1623,7 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "python-dotenv" },
     { name = "sounddevice" },
-    { name = "voxkit", extra = ["smart-turn", "vad"] },
+    { name = "voxchain", extra = ["smart-turn", "vad"] },
 ]
 
 [package.metadata]
@@ -1639,7 +1639,7 @@ requires-dist = [
     { name = "onnxruntime", marker = "extra == 'smart-turn'", specifier = ">=1.30.0" },
     { name = "onnxruntime", marker = "extra == 'vad'", specifier = ">=1.30.0" },
     { name = "transformers", marker = "extra == 'smart-turn'", specifier = ">=5.18.0" },
-    { name = "voxkit", extras = ["vad", "smart-turn"], marker = "extra == 'all'", virtual = "." },
+    { name = "voxchain", extras = ["vad", "smart-turn"], marker = "extra == 'all'", editable = "." },
     { name = "websockets", specifier = ">=15.0.1" },
 ]
 provides-extras = ["docs", "vad", "smart-turn", "all"]
@@ -1652,7 +1652,7 @@ dev = [
     { name = "pytest-asyncio", specifier = ">=1.2.0" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "sounddevice", specifier = ">=0.5.5" },
-    { name = "voxkit", extras = ["vad", "smart-turn"], virtual = "." },
+    { name = "voxchain", extras = ["vad", "smart-turn"], editable = "." },
 ]
 
 [[package]]

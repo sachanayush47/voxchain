@@ -3,7 +3,7 @@
 import asyncio
 import base64
 
-from voxkit.tts import AudioChunk, Flushed, SarvamTTSProvider
+from voxchain.tts import AudioChunk, Flushed, SarvamTTSProvider
 
 
 def _tts(server, **kwargs):

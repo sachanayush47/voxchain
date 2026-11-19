@@ -5,7 +5,7 @@ import base64
 
 import pytest
 
-from voxkit.stt import FinalTranscript, OpenAISTTProvider, PartialTranscript, SpeechStarted, SpeechStopped
+from voxchain.stt import FinalTranscript, OpenAISTTProvider, PartialTranscript, SpeechStarted, SpeechStopped
 
 WINDOW = 512 * 2
 

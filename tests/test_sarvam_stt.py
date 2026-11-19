@@ -6,8 +6,8 @@ import urllib.parse
 
 import pytest
 
-from voxkit.session import SessionClosed
-from voxkit.stt import FinalTranscript, SarvamSTTProvider, SpeechStarted, SpeechStopped
+from voxchain.session import SessionClosed
+from voxchain.stt import FinalTranscript, SarvamSTTProvider, SpeechStarted, SpeechStopped
 
 
 def _stt(server, **kwargs):

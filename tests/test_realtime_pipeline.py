@@ -5,8 +5,8 @@ import json
 
 from langchain_core.tools import tool
 
-from voxkit.output import PlayAudio
-from voxkit.realtime import (
+from voxchain.output import PlayAudio
+from voxchain.realtime import (
     AgentTranscript,
     AudioDelta,
     FunctionCall,

@@ -1,6 +1,6 @@
 """ConversationHistory: turns stay in conversation order, and replay only what the user heard."""
 
-from voxkit.realtime import ConversationHistory
+from voxchain.realtime import ConversationHistory
 
 
 def test_turns_replay_in_order_even_when_the_user_transcript_arrives_late():

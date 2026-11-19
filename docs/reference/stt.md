@@ -2,14 +2,14 @@
 
 ## Interface
 
-::: voxkit.stt.base
+::: voxchain.stt.base
 
-::: voxkit.stt.events
+::: voxchain.stt.events
 
 ## Sarvam provider
 
-::: voxkit.stt.sarvam
+::: voxchain.stt.sarvam
 
 ## OpenAI provider
 
-::: voxkit.stt.openai
+::: voxchain.stt.openai

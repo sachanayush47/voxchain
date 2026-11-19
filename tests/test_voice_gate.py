@@ -2,7 +2,7 @@
 
 import pytest
 
-from voxkit.vad import SegmentAudio, SegmentEnded, SegmentStarted, VoiceGate
+from voxchain.vad import SegmentAudio, SegmentEnded, SegmentStarted, VoiceGate
 
 
 class ScriptedVAD:

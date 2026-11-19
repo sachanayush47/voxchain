@@ -1,6 +1,6 @@
 """PlaybackTracker: what the user heard of each item, and what to cut on barge-in."""
 
-from voxkit.realtime import AudioAction, Cut, PlaybackTracker
+from voxchain.realtime import AudioAction, Cut, PlaybackTracker
 
 
 def _playing(tracker, response_id, item_id, ms, start):

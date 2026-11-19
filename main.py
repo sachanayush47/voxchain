@@ -10,7 +10,7 @@ from langchain.agents import create_agent
 from langchain_core.tools import tool
 from langchain_groq import ChatGroq
 
-from voxkit import (
+from voxchain import (
     OpenAIRealtimeProvider,
     OpenAISTTProvider,
     OpenAITTSProvider,
@@ -21,22 +21,22 @@ from voxkit import (
     SarvamSTTProvider,
     SarvamTTSProvider,
     StopPlayback,
-    VoxkitPipeline,
+    VoxchainPipeline,
 )
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
-logging.getLogger("voxkit").setLevel(logging.DEBUG)
+logging.getLogger("voxchain").setLevel(logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 SAMPLE_RATE = 16000
 CHUNK_SIZE = SAMPLE_RATE // 10  # 100 ms
 
-# VOXKIT_PROVIDER picks the stack (default "sarvam"):
+# VOXCHAIN_PROVIDER picks the stack (default "sarvam"):
 #   "sarvam"          Sarvam STT + Groq agent + Sarvam TTS
 #   "openai"          OpenAI STT + Groq agent + OpenAI TTS (needs OPENAI_API_KEY)
 #   "openai-realtime" One OpenAI Realtime speech-to-speech model with tools (needs OPENAI_API_KEY)
-PROVIDER = os.getenv("VOXKIT_PROVIDER", "sarvam")
+PROVIDER = os.getenv("VOXCHAIN_PROVIDER", "sarvam")
 
 SYSTEM_PROMPT = (
     "You are in a realtime voice conversation with a human. Your replies are spoken aloud, "
@@ -98,7 +98,7 @@ def build_pipeline(play):
     agent = create_agent(
         model=ChatGroq(model="openai/gpt-oss-120b"), tools=[get_current_time], system_prompt=SYSTEM_PROMPT
     )
-    pipeline = VoxkitPipeline(
+    pipeline = VoxchainPipeline(
         stt,
         tts,
         agent,

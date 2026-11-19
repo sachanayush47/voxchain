@@ -1,17 +1,17 @@
-# VoxkitPipeline
+# VoxchainPipeline
 
-::: voxkit.core.pipeline
+::: voxchain.core.pipeline
 
 ## Client output
 
-::: voxkit.output
+::: voxchain.output
 
 ## Building blocks
 
-::: voxkit.core.replies
+::: voxchain.core.replies
 
-::: voxkit.core.turn_gate
+::: voxchain.core.turn_gate
 
-::: voxkit.core.text
+::: voxchain.core.text
 
-::: voxkit.core.agent
+::: voxchain.core.agent

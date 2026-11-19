@@ -2,14 +2,14 @@
 
 ## Interface
 
-::: voxkit.tts.base
+::: voxchain.tts.base
 
-::: voxkit.tts.events
+::: voxchain.tts.events
 
 ## Sarvam provider
 
-::: voxkit.tts.sarvam
+::: voxchain.tts.sarvam
 
 ## OpenAI provider
 
-::: voxkit.tts.openai
+::: voxchain.tts.openai

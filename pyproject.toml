@@ -1,13 +1,25 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "voxkit"
-version = "0.0.1"
+name = "voxchain"
+version = "0.1.0"
 description = "A python library for building voice agents"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
     "langchain>=1.3.11",
     "websockets>=15.0.1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/sachanayush47/voxchain"
+Documentation = "https://sachanayush47.github.io/voxchain/"
+Repository = "https://github.com/sachanayush47/voxchain"
+Issues = "https://github.com/sachanayush47/voxchain/issues"
 
 [project.optional-dependencies]
 docs = [
@@ -27,11 +39,11 @@ smart-turn = [
     "transformers>=5.18.0",
 ]
 all = [
-    "voxkit[vad,smart-turn]",
+    "voxchain[vad,smart-turn]",
 ]
 
 [tool.setuptools.packages.find]
-include = ["voxkit*"]  # Only the library; docs output, tests and scripts stay out of the wheel
+include = ["voxchain*"]  # Only the library; docs output, tests and scripts stay out of the wheel
 
 [dependency-groups]
 dev = [
@@ -41,7 +53,7 @@ dev = [
     "pytest-asyncio>=1.2.0",
     "sounddevice>=0.5.5",
     "python-dotenv>=1.2.2",
-    "voxkit[vad,smart-turn]",
+    "voxchain[vad,smart-turn]",
 ]
 
 [tool.pytest.ini_options]
@@ -81,9 +93,9 @@ convention = "google"
 # Runnable example, not part of the published API surface.
 "main.py" = ["D100", "D103"]
 # Intentionally-empty stubs (see AGENTS.md) -- nothing to document yet.
-"voxkit/exceptions.py" = ["D100"]
-"voxkit/vad/base.py" = ["D100"]
+"voxchain/exceptions.py" = ["D100"]
+"voxchain/vad/base.py" = ["D100"]
 "tests/*" = ["D101", "D102", "D103", "D105", "D107"]  # Test doubles need no docstrings
 
 [tool.uv.sources]
-voxkit = { workspace = true }
+voxchain = { workspace = true }
