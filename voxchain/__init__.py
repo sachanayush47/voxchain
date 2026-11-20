@@ -17,7 +17,7 @@ from voxchain.stt import OpenAISTTProvider, SarvamSTTProvider, STTProvider
 from voxchain.tts import OpenAITTSProvider, SarvamTTSProvider, TTSProvider
 from voxchain.turn import EndOfTurnDetector, PipecatSmartTurnDetector
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "EndOfTurnDetector",
