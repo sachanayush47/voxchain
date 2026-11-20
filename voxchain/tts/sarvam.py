@@ -1,4 +1,4 @@
-"""Sarvam AI streaming text-to-speech over a websocket."""
+"""Sarvam AI text-to-speech on a websocket stream."""
 
 import base64
 import json
@@ -17,13 +17,13 @@ logger = logging.getLogger(__name__)
 
 
 class SarvamTTSProvider(TTSProvider):
-    """Sarvam ``bulbul`` voices, streamed as raw PCM16.
+    """Sarvam ``bulbul`` voices as a stream of raw PCM16.
 
-    Sarvam has no way to cancel synthesis on a socket, so :meth:`cancel` replaces
-    the socket; anything the old one still delivers is dropped. Options left
-    ``None`` are not sent, so Sarvam's defaults apply. Some only work on one
-    model: ``pitch`` and ``loudness`` on ``bulbul:v2``, ``temperature`` and
-    ``dict_id`` on ``bulbul:v3``.
+    Sarvam cannot cancel synthesis on a socket, so :meth:`cancel` replaces the
+    socket. The provider discards all data that the old socket still delivers.
+    The provider does not send options that are ``None``, so Sarvam's defaults
+    apply. Some options work on only one model: ``pitch`` and ``loudness`` on
+    ``bulbul:v2``, and ``temperature`` and ``dict_id`` on ``bulbul:v3``.
     """
 
     def __init__(
@@ -67,12 +67,12 @@ class SarvamTTSProvider(TTSProvider):
         self._pending_flushes = 0
 
     def config(self) -> dict:
-        """The ``config`` message that opens every socket."""
+        """The ``config`` message that the provider sends first on each socket."""
         data = {
             "model": self.model,
             "target_language_code": self.language_code,
             "speaker": self.speaker,
-            "output_audio_codec": "linear16",  # Raw PCM, which is what voxchain hands the client
+            "output_audio_codec": "linear16",  # Raw PCM, because voxchain sends raw PCM to the client
             "speech_sample_rate": self.sample_rate,
             **compact(self.options),
         }
@@ -100,12 +100,12 @@ class SarvamTTSProvider(TTSProvider):
         await self.session.socket.send_reliably({"type": TTSClientMessage.TEXT, "data": {"text": text}})
 
     async def flush(self) -> None:
-        """Synthesize everything spoken so far; a ``Flushed`` follows its audio."""
+        """Synthesize all text up to now. A ``Flushed`` follows its audio."""
         if await self.session.socket.send_reliably({"type": TTSClientMessage.FLUSH}):
             self._pending_flushes += 1
 
     async def cancel(self) -> None:
-        """Drop everything requested so far by replacing the socket."""
+        """Replace the socket to discard all requests up to now."""
         await self.session.replace()
 
     def receive_events(self) -> AsyncIterator[TTSEvent]:
@@ -113,7 +113,7 @@ class SarvamTTSProvider(TTSProvider):
         return self.session.events()
 
     async def disconnect(self) -> None:
-        """Close the socket. Safe to call more than once."""
+        """Close the socket. It is safe to call this more than once."""
         await self.session.close()
 
     def handle_message(self, message: dict) -> list[TTSEvent]:
@@ -129,5 +129,5 @@ class SarvamTTSProvider(TTSProvider):
             case TTSServerMessage.ERROR:
                 logger.error(f"Sarvam TTS error ({data.get('code')}): {data.get('message')}")
             case other:
-                logger.debug(f"Sarvam TTS: Ignoring {other!r}")
+                logger.debug(f"Sarvam TTS: Ignored {other!r}")
         return []

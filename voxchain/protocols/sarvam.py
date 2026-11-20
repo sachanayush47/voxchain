@@ -1,4 +1,4 @@
-"""Sarvam AI streaming websocket vocabulary, shared by the Sarvam STT and TTS providers."""
+"""The vocabulary of the Sarvam AI websocket API, which the Sarvam STT and TTS providers share."""
 
 import urllib.parse
 from collections.abc import Callable
@@ -11,7 +11,7 @@ TTS_URL = "wss://api.sarvam.ai/text-to-speech/ws"
 
 
 class STTServerMessage(StrEnum):
-    """Message types the speech-to-text socket sends."""
+    """Message types that the speech-to-text socket sends."""
 
     DATA = "data"
     EVENTS = "events"
@@ -19,20 +19,20 @@ class STTServerMessage(StrEnum):
 
 
 class STTSignal(StrEnum):
-    """Voice-activity signal types inside an ``events`` message."""
+    """Types of voice-activity signal in an ``events`` message."""
 
     START_SPEECH = "START_SPEECH"
     END_SPEECH = "END_SPEECH"
 
 
 class STTClientMessage(StrEnum):
-    """Typed messages voxchain sends to the speech-to-text socket. Audio messages carry no type."""
+    """Message types that voxchain sends to the speech-to-text socket. Audio messages have no type."""
 
     FLUSH = "flush"
 
 
 class TTSClientMessage(StrEnum):
-    """Message types voxchain sends to the text-to-speech socket."""
+    """Message types that voxchain sends to the text-to-speech socket."""
 
     CONFIG = "config"
     TEXT = "text"
@@ -40,7 +40,7 @@ class TTSClientMessage(StrEnum):
 
 
 class TTSServerMessage(StrEnum):
-    """Message types the text-to-speech socket sends."""
+    """Message types that the text-to-speech socket sends."""
 
     AUDIO = "audio"
     EVENT = "event"
@@ -48,14 +48,14 @@ class TTSServerMessage(StrEnum):
 
 
 class TTSEventType(StrEnum):
-    """Event types inside an ``event`` message."""
+    """Event types in an ``event`` message."""
 
     FINAL = "final"
 
 
 async def open_socket(connect: Callable, url: str, *, api_key: str, **query: str | int | float | bool | None):
-    """Connect to a Sarvam socket. ``None`` query values are left out so Sarvam's defaults apply."""
-    # Sarvam's query parser wants lowercase booleans.
+    """Connect to a Sarvam socket. Sarvam's defaults apply to ``None`` query values."""
+    # The Sarvam query parser accepts only lowercase booleans.
     params = {
         key: ("true" if value else "false") if isinstance(value, bool) else str(value)
         for key, value in compact(query).items()

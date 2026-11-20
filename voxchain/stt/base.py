@@ -1,4 +1,4 @@
-"""The interface every speech-to-text provider implements."""
+"""The interface that all speech-to-text providers implement."""
 
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
@@ -7,22 +7,22 @@ from voxchain.stt.events import STTEvent
 
 
 class STTProvider(ABC):
-    """Streaming speech-to-text: audio in, voice activity and transcripts out.
+    """Real-time speech-to-text: audio goes in, and voice activity and transcripts come out.
 
-    Providers report voice activity themselves (from the vendor, or a local VAD),
-    reconnect when the stream drops, and yield
-    :class:`~voxchain.session.SessionClosed` only when they can't.
+    Providers report voice activity themselves, from the vendor or from a local
+    VAD. They reconnect when the stream drops. They yield
+    :class:`~voxchain.session.SessionClosed` only if they cannot reconnect.
     """
 
     sample_rate: int
 
     @abstractmethod
     async def connect(self) -> None:
-        """Open the stream, raising if the provider rejects it."""
+        """Open the stream. Raise an error if the vendor rejects it."""
 
     @abstractmethod
     async def send_audio(self, pcm: bytes) -> None:
-        """Send PCM16 audio at ``sample_rate``. Dropped while the stream is reconnecting."""
+        """Send PCM16 audio at ``sample_rate``. The provider discards audio during a reconnect."""
 
     @abstractmethod
     def receive_events(self) -> AsyncIterator[STTEvent]:
@@ -30,4 +30,4 @@ class STTProvider(ABC):
 
     @abstractmethod
     async def disconnect(self) -> None:
-        """Close the stream. Safe to call more than once."""
+        """Close the stream. It is safe to call this more than once."""

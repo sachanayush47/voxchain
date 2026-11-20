@@ -1,4 +1,4 @@
-"""OpenAI Realtime API wire vocabulary, shared by the OpenAI STT, TTS and speech-to-speech providers."""
+"""The wire vocabulary of the OpenAI Realtime API, which the OpenAI STT, TTS and speech-to-speech providers share."""
 
 import asyncio
 import json
@@ -10,15 +10,15 @@ from enum import StrEnum
 URL = "wss://api.openai.com/v1/realtime"
 SAMPLE_RATE = 24000  # The API takes and returns 24 kHz PCM16
 BYTES_PER_MS = SAMPLE_RATE * 2 / 1000
-# OpenAI ends a session at 60 minutes; an idle one is replaced a little before that.
+# OpenAI ends a session at 60 minutes, so a provider replaces an idle session a short time before that.
 MAX_SESSION_AGE_S = 55 * 60
 HANDSHAKE_TIMEOUT_S = 10.0
-# Expected when racing the server (a cancel after it finished, a create while one is starting).
+# Normal errors in a race with the server: a cancel after the response ended, or a create while one starts.
 EXPECTED_ERROR_CODES = frozenset({"conversation_already_has_active_response", "response_cancel_not_active"})
 
 
 class ServerEvent(StrEnum):
-    """Event types OpenAI sends that voxchain acts on."""
+    """Event types from OpenAI that voxchain uses."""
 
     SESSION_CREATED = "session.created"
     SESSION_UPDATED = "session.updated"
@@ -50,7 +50,7 @@ class ClientEvent(StrEnum):
 
 
 class ItemType(StrEnum):
-    """Conversation item types voxchain builds or inspects."""
+    """Conversation item types that voxchain builds or examines."""
 
     MESSAGE = "message"
     FUNCTION_CALL = "function_call"
@@ -58,10 +58,10 @@ class ItemType(StrEnum):
 
 
 async def open_session(connect: Callable, *, api_key: str, session: dict, **query: str):
-    """Connect and configure a session, raising if OpenAI rejects the config. Returns the open socket.
+    """Connect, configure a session and return the open socket. Raise an error if OpenAI rejects the configuration.
 
-    ``query`` becomes the URL's query string: ``model=...`` for a conversation,
-    ``intent="transcription"`` for a transcription session.
+    ``query`` becomes the query string of the URL: ``model=...`` for a conversation,
+    or ``intent="transcription"`` for a transcription session.
     """
     ws = await connect(
         f"{URL}?{urllib.parse.urlencode(query)}",
@@ -71,7 +71,7 @@ async def open_session(connect: Callable, *, api_key: str, session: dict, **quer
     try:
         await _expect(ws, ServerEvent.SESSION_CREATED)
         await ws.send(json.dumps({"type": ClientEvent.SESSION_UPDATE, "session": session}))
-        # A rejected config must surface now; mid-call is too late to fall back.
+        # A rejected configuration must show now, because during a call it is too late to use a fallback.
         await _expect(ws, ServerEvent.SESSION_UPDATED)
     except BaseException:
         await ws.close()

@@ -1,4 +1,4 @@
-"""Turning streamed agent tokens into speakable sentences, so TTS can start before the agent finishes."""
+"""Turns streamed agent tokens into speakable sentences, so that TTS can start before the agent finishes."""
 
 import re
 
@@ -13,10 +13,10 @@ WORD_CHAR = re.compile(r"\w")
 
 
 def to_speakable(text: str) -> str:
-    """Strip markdown and HTML so ``text`` reads naturally aloud.
+    """Remove markdown and HTML, so that TTS can speak ``text`` naturally.
 
-    Returns ``""`` when nothing speakable is left (e.g. a table separator ``|---|``),
-    which TTS engines reject, so callers skip empty results.
+    Returns ``""`` if no speakable text remains (for example, a table separator ``|---|``).
+    TTS engines reject such text, so callers skip empty results.
     """
     text = HTML_TAG.sub(" ", text)
     text = MD_LINK.sub(r"\1", text)
@@ -28,12 +28,12 @@ def to_speakable(text: str) -> str:
 
 
 class SentenceSegmenter:
-    """Accumulates streamed tokens and emits complete, speakable sentences.
+    """Collects streamed tokens and returns complete, speakable sentences.
 
     A piece ends at sentence or clause punctuation (``. ! ? ; : ,``) followed
-    by whitespace, or at a newline. Pieces shorter than ``min_chars`` are
-    merged with the next one, so abbreviations ("Dr. Smith") and short list
-    items don't become choppy standalone TTS requests.
+    by whitespace, or at a newline. The segmenter merges a piece shorter than
+    ``min_chars`` with the next piece. Thus abbreviations ("Dr. Smith") and
+    short list items do not become small, separate TTS requests.
 
     Example:
         >>> segmenter = SentenceSegmenter()
@@ -62,7 +62,7 @@ class SentenceSegmenter:
         return sentences
 
     def flush(self) -> list[str]:
-        """Return whatever speakable text is left once the stream has ended."""
+        """Return the remaining speakable text after the stream ends."""
         self._carry = f"{self._carry} {self._buffer}".strip()
         self._buffer = ""
         return self._take_carry()

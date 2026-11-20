@@ -1,20 +1,20 @@
-"""Estimating what the user heard of the model's speech, and what to cut when they interrupt."""
+"""Estimates the part of the model's speech that the user heard, and what to cut when the user interrupts."""
 
 from dataclasses import dataclass, field
 from enum import Enum
 
 
 class AudioAction(Enum):
-    """What to do with an arriving chunk of the model's speech."""
+    """What to do with a new chunk of the model's speech."""
 
     PLAY = "play"
     DROP = "drop"  # Late audio of an item already cut
-    DELETE = "delete"  # First audio of an item from an interrupted reply: the user heard none of it
+    DELETE = "delete"  # First audio of an item from an interrupted response: the user heard no part of it
 
 
 @dataclass(frozen=True)
 class Cut:
-    """An interrupted item: truncate it to ``heard_ms``, or delete it when that is 0."""
+    """An interrupted item: truncate it to ``heard_ms``, or delete it if ``heard_ms`` is 0."""
 
     item_id: str
     heard_ms: int
@@ -39,15 +39,15 @@ class ItemPlayback:
     handled: bool = False
 
     def heard_ms(self, now: float) -> float:
-        """Milliseconds of this item the user has heard by ``now``."""
+        """The milliseconds of this item that the user heard until ``now``."""
         return sum(min(max(now - start, 0.0), end - start) for start, end in self.chunks) * 1000
 
 
 class PlaybackTracker:
     """Follows each spoken item from arrival to playback, and decides what a barge-in must cut.
 
-    When each chunk plays comes from :class:`~voxchain.output.OutputChannel`; times
-    are seconds on its clock.
+    :class:`~voxchain.output.OutputChannel` tells the tracker when each chunk plays.
+    Times are seconds on the clock of the channel.
     """
 
     def __init__(self) -> None:
@@ -57,11 +57,11 @@ class PlaybackTracker:
         self._spoken: set[str] = set()
 
     def is_discarded(self, response_id: str) -> bool:
-        """Whether a response was interrupted and its remaining output should be ignored."""
+        """Whether the user interrupted a response, so that the pipeline must ignore its remaining output."""
         return response_id in self._discarded
 
     def response_started(self, response_id: str) -> None:
-        """A response started generating."""
+        """The model started to generate a response."""
         self._active = response_id
 
     def accept(self, response_id: str, item_id: str, duration_ms: float) -> AudioAction:
@@ -86,7 +86,7 @@ class PlaybackTracker:
             item.chunks.append((start, end))
 
     def barge_in(self, now: float) -> list[Cut]:
-        """The user started talking: discard the reply being generated and say which items to cut."""
+        """The user started to speak: discard the current response and return the items to cut."""
         if self._active:
             self._discarded.add(self._active)
         cuts = []
@@ -94,7 +94,7 @@ class PlaybackTracker:
             heard = item.heard_ms(now)
             if item.handled or (item.done and heard >= item.received_ms - 1):
                 if item.done:
-                    del self._items[item_id]  # Fully played; nothing left to track
+                    del self._items[item_id]  # The item played fully, so there is nothing more to track
                 continue
             item.handled = True
             if not item.done:
@@ -103,7 +103,7 @@ class PlaybackTracker:
         return cuts
 
     def response_done(self, response_id: str) -> ResponseOutcome:
-        """A response ended. Its items stop being tracked once nothing more can happen to them."""
+        """A response ended. The tracker no longer tracks its items when nothing more can happen to them."""
         if response_id == self._active:
             self._active = None
         interrupted = response_id in self._discarded

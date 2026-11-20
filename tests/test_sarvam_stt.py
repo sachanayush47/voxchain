@@ -1,4 +1,4 @@
-"""SarvamSTTProvider: connection parameters, audio framing, and Sarvam messages mapped to STT events."""
+"""SarvamSTTProvider: connection parameters, audio frames, and Sarvam messages mapped to STT events."""
 
 import asyncio
 import base64

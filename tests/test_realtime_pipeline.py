@@ -144,7 +144,7 @@ async def test_a_reply_plays_and_ends_with_end_of_turn():
     await settle()
     assert h.received == ["PlayAudio", "PlayAudio", "ReplyFinished"]
     assert h.transcripts == [("user", "Hi"), ("agent", "Hello!")]
-    # 16 kHz mic audio arrives resampled to 24 kHz; the resampler holds back one sample for the next chunk.
+    # The pipeline resamples 16 kHz mic audio to 24 kHz. The resampler keeps one sample for the next chunk.
     assert abs(h.provider.audio_in - 3 * 480) <= 2
     await h.stop()
 
@@ -160,7 +160,7 @@ async def test_barge_in_is_not_delayed_by_a_callback_blocked_on_playback():
     assert h.provider.made("truncate") == [("truncate", "a1", 300)]
     h.unblock.set()
     await settle()
-    assert h.received == ["PlayAudio", "StopPlayback"]  # The five queued chunks were dropped
+    assert h.received == ["PlayAudio", "StopPlayback"]  # The pipeline discarded the five queued chunks
     await h.stop()
 
 
@@ -169,7 +169,7 @@ async def test_heard_time_survives_a_playback_gap():
     await h.start()
     h.provider.push(ResponseStarted(response_id="r1"), audio("r1", "a1", 200))
     await settle()
-    h.now = 1.0  # The client ran dry for 800 ms before the next chunk arrived
+    h.now = 1.0  # The client had no audio for 800 ms before the next chunk arrived
     h.provider.push(audio("r1", "a1", 200))
     await settle()
     h.now = 1.1

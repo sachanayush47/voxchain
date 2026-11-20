@@ -28,13 +28,14 @@ logger = logging.getLogger(__name__)
 
 
 class RealtimePipeline:
-    """Feeds audio to a :class:`~voxchain.realtime.base.RealtimeProvider`, plays its speech and runs its tool calls.
+    """Sends audio to a :class:`~voxchain.realtime.base.RealtimeProvider`, plays its speech and runs its tool calls.
 
-    ``callback`` receives :mod:`voxchain.output` events, the same ones
-    :class:`~voxchain.core.pipeline.VoxchainPipeline` sends, from its own task, so a
-    callback that blocks on playback never delays barge-in. On barge-in the conversation is
-    cut to what the user heard (see :class:`~voxchain.realtime.playback.PlaybackTracker`),
-    and calls from the interrupted response are not run. A pipeline runs once.
+    ``callback`` receives :mod:`voxchain.output` events from its own task. These are
+    the same events that :class:`~voxchain.core.pipeline.VoxchainPipeline` sends. Thus
+    a callback that blocks on playback never delays a barge-in. At a barge-in, the
+    pipeline cuts the conversation to the part that the user heard (see
+    :class:`~voxchain.realtime.playback.PlaybackTracker`). It does not run the tool
+    calls from the interrupted response. A pipeline runs once.
     """
 
     def __init__(
@@ -63,7 +64,7 @@ class RealtimePipeline:
         self._started = False
 
     async def run(self, audio_stream: AsyncIterator[bytes]) -> None:
-        """Run until the session is lost, the audio stream ends, or a task fails; then shut down."""
+        """Run until the provider loses the session, the audio stream ends or a task fails. Then stop."""
         if self._started:
             raise RuntimeError("A RealtimePipeline runs once; create a new one")
         self._started = True
@@ -125,10 +126,10 @@ class RealtimePipeline:
     async def _barge_in(self) -> None:
         now = self.clock()
         cuts = self._playback.barge_in(now)
-        # Stop playback before any network call, so the heard estimate can't drift.
+        # Stop playback before any network call, so that the estimate of heard audio cannot drift.
         if cuts or self.output.has_queued_audio():
             self.output.stop(now)
-            logger.debug(f"RealtimePipeline: Barge-in, cutting {cuts}")
+            logger.debug(f"RealtimePipeline: Barge-in, items to cut: {cuts}")
         for cut in cuts:
             if cut.heard_ms > 0:
                 await self.provider.truncate(cut.item_id, cut.heard_ms)

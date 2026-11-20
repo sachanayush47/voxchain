@@ -64,7 +64,7 @@ class ScriptedTTS(TTSProvider):
 
 
 class ScriptedAgent:
-    """Replies with canned text; ``hold`` keeps a reply generating until released."""
+    """Replies with fixed text. If ``hold`` is an event, each word waits until the test sets it."""
 
     def __init__(self, reply="Hello there, nice to meet you. How can I help you today?"):
         self.reply = reply
@@ -175,7 +175,7 @@ async def test_barge_in_is_not_delayed_by_a_callback_blocked_on_playback():
     h.now = 0.5
     h.stt.events.put_nowait(SpeechStarted())
     await settle()
-    assert ("cancel",) in h.tts.calls  # Handled while the callback is still stuck on the first chunk
+    assert ("cancel",) in h.tts.calls  # The cancel happens while the callback is still blocked on the first chunk
     h.unblock.set()
     await settle()
     assert h.received == ["PlayAudio", "StopPlayback"]
@@ -193,7 +193,7 @@ async def test_speech_while_the_last_reply_is_still_playing_stops_playback_only(
     h.stt.events.put_nowait(SpeechStarted())
     await settle()
     assert h.received[-1] == "StopPlayback"
-    assert ("cancel",) not in h.tts.calls  # Synthesis was already finished
+    assert ("cancel",) not in h.tts.calls  # Synthesis already finished
     await h.stop()
 
 

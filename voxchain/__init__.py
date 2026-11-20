@@ -1,13 +1,13 @@
-"""voxchain: a thin, event-driven library for building real-time voice agents on LangChain/LangGraph.
+"""voxchain: a thin, event-driven library for real-time voice agents on LangChain/LangGraph.
 
-Two ways to build an agent:
+There are two ways to build an agent:
 
-- :class:`~voxchain.core.pipeline.VoxchainPipeline` chains streaming speech-to-text, any
-  LangGraph agent and streaming text-to-speech.
-- :class:`~voxchain.realtime.pipeline.RealtimePipeline` runs one speech-to-speech model
-  that hears, reasons, calls LangChain tools and speaks.
+- :class:`~voxchain.core.pipeline.VoxchainPipeline` connects streaming speech-to-text, a
+  LangGraph agent and streaming text-to-speech in a chain.
+- :class:`~voxchain.realtime.pipeline.RealtimePipeline` runs one speech-to-speech model.
+  The model hears, reasons, calls LangChain tools and speaks.
 
-Both send the client the same :mod:`voxchain.output` events.
+The two pipelines send the same :mod:`voxchain.output` events to the client.
 """
 
 from voxchain.core import VoxchainPipeline

@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 SAMPLE_RATE = 16000
 CHUNK_SIZE = SAMPLE_RATE // 10  # 100 ms
 
-# VOXCHAIN_PROVIDER picks the stack (default "sarvam"):
+# VOXCHAIN_PROVIDER selects the stack (default "sarvam"):
 #   "sarvam"          Sarvam STT + Groq agent + Sarvam TTS
 #   "openai"          OpenAI STT + Groq agent + OpenAI TTS (needs OPENAI_API_KEY)
 #   "openai-realtime" One OpenAI Realtime speech-to-speech model with tools (needs OPENAI_API_KEY)
@@ -74,7 +74,7 @@ async def microphone_stream() -> AsyncIterator[bytes]:
 
 
 def build_pipeline(play):
-    """The pipeline for PROVIDER, plus the sample rate its audio comes back at."""
+    """Return the pipeline for PROVIDER and the sample rate of its output audio."""
     if PROVIDER == "openai-realtime":
         provider = OpenAIRealtimeProvider(
             api_key=os.environ["OPENAI_API_KEY"],

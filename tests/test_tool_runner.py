@@ -1,4 +1,4 @@
-"""ToolRunner: tool results and failures both come back as strings the model can use."""
+"""ToolRunner: it returns tool results and failures as strings that the model can use."""
 
 import json
 

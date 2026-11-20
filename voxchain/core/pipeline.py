@@ -22,20 +22,23 @@ logger = logging.getLogger(__name__)
 
 
 class VoxchainPipeline:
-    """Turns user speech into agent replies spoken back, with turn-taking and barge-in.
+    """Turns user speech into spoken agent replies, and controls turns and barge-in.
 
-    Each committed user turn runs the agent; its reply streams to TTS sentence
-    by sentence, and replies run one at a time, in order. ``callback`` receives
-    :mod:`voxchain.output` events from its own task, so a callback that blocks on
-    playback never delays barge-in.
+    Each committed user turn runs the agent. The reply streams to TTS one
+    sentence at a time. Replies run one at a time, in order. ``callback``
+    receives :mod:`voxchain.output` events from its own task. Thus a callback
+    that blocks on playback never delays a barge-in.
 
-    With ``interrupt`` on, the user talking over a reply cancels it and stops
-    playback. If they barge in within ``resume_window`` seconds of first hearing
-    it, their previous turn is merged with what they say next, because the
-    end-of-turn call was most likely premature (``None`` never merges). An
-    ``end_of_turn`` detector holds transcripts that sound unfinished for up to
-    ``end_of_turn_timeout`` seconds. ``thread_id`` keys the agent's checkpointed
-    memory. A pipeline runs once.
+    If ``interrupt`` is on and the user speaks over a reply, the pipeline
+    cancels the reply and stops playback. If the user interrupts within
+    ``resume_window`` seconds after they first hear the reply, the pipeline
+    merges their previous turn with their next words. The reason is that the
+    end-of-turn decision was probably too early. If ``resume_window`` is
+    ``None``, the pipeline never merges.
+
+    An ``end_of_turn`` detector holds transcripts that sound incomplete for a
+    maximum of ``end_of_turn_timeout`` seconds. ``thread_id`` is the key for
+    the agent's checkpointed memory. A pipeline runs once.
     """
 
     def __init__(
@@ -74,7 +77,7 @@ class VoxchainPipeline:
         self._started = False
 
     async def run(self, audio_stream: AsyncIterator[bytes]) -> None:
-        """Run until a provider's session is lost, the audio stream ends, or a task fails; then shut down."""
+        """Run until a provider loses its session, the audio stream ends or a task fails. Then stop."""
         if self._started:
             raise RuntimeError("A VoxchainPipeline runs once; create a new one")
         self._started = True
@@ -133,11 +136,11 @@ class VoxchainPipeline:
         now = self.clock()
         if self.interrupt and (self.replies.active or self.output.playing(now)):
             interruption = self.replies.interrupt(now)
-            logger.debug(f"VoxchainPipeline: Barge-in (resuming {interruption.resume_text!r})")
+            logger.debug(f"VoxchainPipeline: Barge-in (text to resume: {interruption.resume_text!r})")
             for reply in interruption.cancelled:
                 if reply.task:
                     reply.task.cancel()
-            # Stop playback before any network call, so nothing stale reaches the client.
+            # Stop playback before any network call, so that no stale audio gets to the client.
             self.output.stop(now)
             if interruption.cancel_synthesis:
                 await self.tts.cancel()
@@ -153,7 +156,7 @@ class VoxchainPipeline:
         reply.task.add_done_callback(lambda _: self.replies.finished_generating(reply))
 
     async def _run_reply(self, reply: Reply, previous: asyncio.Task | None) -> None:
-        # Cancellation (barge-in) skips the closing flush, so a cancelled reply never ends in a late Flushed.
+        # Cancellation (barge-in) skips the final flush, so a cancelled reply never ends with a late Flushed.
         if previous is not None:
             await asyncio.wait({previous})
         segmenter = SentenceSegmenter()
@@ -180,5 +183,5 @@ class VoxchainPipeline:
         spoken.append(sentence)
 
     async def _session_lost(self, provider: str, reason: str) -> None:
-        logger.error(f"VoxchainPipeline: {provider} session closed ({reason}), stopping")
+        logger.error(f"VoxchainPipeline: {provider} session closed ({reason}), the pipeline stops")
         await self.output.close(f"{provider}: {reason}")

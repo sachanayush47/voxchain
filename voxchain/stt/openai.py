@@ -18,19 +18,19 @@ from voxchain.vad.gate import SegmentAudio, SegmentEnded, SegmentStarted, VoiceA
 
 logger = logging.getLogger(__name__)
 
-# OpenAI rejects the whole session config if any keyword contains these.
+# OpenAI rejects the full session configuration if a keyword contains one of these characters.
 INVALID_KEYWORD = re.compile(r"[<>\r\n]")
 
 
 class OpenAISTTProvider(STTProvider):
-    """Transcribes speech on an OpenAI transcription session, cutting turns with a local VAD.
+    """Transcribes speech on an OpenAI transcription session, and uses a local VAD to find each user turn.
 
-    OpenAI's current transcription models run with server-side turn detection
-    off, so a local :class:`~voxchain.vad.gate.VoiceGate` decides when the user
-    starts and stops talking. It reports that for barge-in, streams only speech
-    to OpenAI (silence is never sent or billed), and commits each segment so
-    OpenAI finalizes its transcript. Transcripts are yielded in speech order even
-    when OpenAI finishes them out of order.
+    The current OpenAI transcription models run with server-side turn detection
+    off. Thus a local :class:`~voxchain.vad.gate.VoiceGate` decides when the user
+    turn starts and stops. The provider reports these points for barge-in and
+    streams only speech to OpenAI, so OpenAI never receives or bills silence. The
+    provider commits each segment, so that OpenAI finalizes its transcript. The
+    provider yields transcripts in speech order, even if OpenAI finishes them out of order.
     """
 
     def __init__(
@@ -52,10 +52,10 @@ class OpenAISTTProvider(STTProvider):
         connect: Callable = websockets.connect,
     ) -> None:
         if sample_rate not in (8000, 16000):
-            raise ValueError(f"Sample rate must be 8000 or 16000 (what the VAD runs at), got {sample_rate}")
+            raise ValueError(f"Sample rate must be 8000 or 16000 (the rates that the VAD supports), got {sample_rate}")
         for keyword in keywords or []:
             if INVALID_KEYWORD.search(keyword):
-                raise ValueError(f"Keywords may not contain '<', '>' or line breaks: {keyword!r}")
+                raise ValueError(f"Keywords must not contain '<', '>' or line breaks: {keyword!r}")
         self.api_key = api_key
         self.model = model
         self.languages = languages
@@ -79,7 +79,7 @@ class OpenAISTTProvider(STTProvider):
         self._partials: dict[str, str] = {}
 
     def session_config(self) -> dict:
-        """The ``session.update`` payload: 24 kHz PCM in, server-side turn detection off."""
+        """The ``session.update`` payload: 24 kHz PCM input, and no server-side turn detection."""
         transcription = {
             "model": self.model,
             "languages": self.languages,
@@ -95,7 +95,7 @@ class OpenAISTTProvider(STTProvider):
         return {"type": "transcription", "audio": {"input": audio_input}}
 
     async def connect(self) -> None:
-        """Open and configure the transcription session, raising if OpenAI rejects it."""
+        """Open and configure the transcription session. Raise an error if OpenAI rejects it."""
         await self.session.connect()
 
     async def _open(self):
@@ -131,7 +131,7 @@ class OpenAISTTProvider(STTProvider):
         return self.session.events()
 
     async def disconnect(self) -> None:
-        """Close the session. Safe to call more than once."""
+        """Close the session. It is safe to call this more than once."""
         await self.session.close()
 
     def handle_event(self, event: dict) -> list[STTEvent]:
@@ -157,29 +157,32 @@ class OpenAISTTProvider(STTProvider):
                 error = event.get("error", {})
                 logger.error(f"OpenAI STT error ({error.get('code')}): {error.get('message')}")
             case other:
-                logger.debug(f"OpenAI STT: Ignoring {other}")
+                logger.debug(f"OpenAI STT: Ignored {other}")
         return []
 
 
 class TranscriptOrder:
-    """Releases transcripts in commit order, since OpenAI may finish later segments first."""
+    """Releases transcripts in commit order, because OpenAI can finish later segments first."""
 
     def __init__(self) -> None:
         self._committed: deque[str] = deque()
         self._finished: dict[str, str] = {}
 
     def committed(self, item_id: str) -> list[STTEvent]:
-        """A segment was committed; release whatever is now in order."""
+        """Record that OpenAI committed a segment, and release the transcripts that are now in order."""
         self._committed.append(item_id)
         return self._release()
 
     def finished(self, item_id: str, text: str) -> list[STTEvent]:
-        """A segment's transcript arrived (empty if it failed); release whatever is now in order."""
+        """Record the transcript of a segment, and release the transcripts that are now in order.
+
+        The text is empty if the transcription failed.
+        """
         self._finished[item_id] = text
         return self._release()
 
     def _release(self) -> list[STTEvent]:
-        # A transcript for a segment never seen committed (e.g. across a reconnect) can't be ordered; release it.
+        # A transcript for a segment with no commit (for example, after a reconnect) has no position, so release it.
         ready = [item_id for item_id in self._finished if item_id not in self._committed]
         while self._committed and self._committed[0] in self._finished:
             ready.append(self._committed.popleft())

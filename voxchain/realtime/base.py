@@ -9,7 +9,7 @@ from voxchain.realtime.events import RealtimeEvent
 
 @dataclass(frozen=True)
 class ToolSpec:
-    """A tool the model may call: a name, a description and a JSON Schema for its arguments."""
+    """A tool that the model can call: a name, a description and a JSON Schema for its arguments."""
 
     name: str
     description: str
@@ -19,9 +19,9 @@ class ToolSpec:
 class RealtimeProvider(ABC):
     """A model that hears, reasons, calls tools and speaks in one session.
 
-    Providers own the session: they reconnect when it drops and restore the
-    conversation so far. :meth:`receive_events` yields
-    :class:`~voxchain.realtime.events.SessionClosed` only when they can't.
+    The provider owns the session. If the connection fails, the provider
+    reconnects and restores the conversation. :meth:`receive_events` yields
+    :class:`~voxchain.realtime.events.SessionClosed` only if the provider cannot do this.
     """
 
     input_sample_rate: int
@@ -30,36 +30,36 @@ class RealtimeProvider(ABC):
 
     @abstractmethod
     def set_tools(self, tools: list[ToolSpec]) -> None:
-        """Declare the tools the model may call. Call before :meth:`connect`."""
+        """Set the tools that the model can call. Call this method before :meth:`connect`."""
 
     @abstractmethod
     async def connect(self) -> None:
-        """Open and configure a session, raising if the provider rejects it."""
+        """Open and configure a session. Raise an error if the vendor rejects the session."""
 
     @abstractmethod
     def receive_events(self) -> AsyncIterator[RealtimeEvent]:
-        """Yield events for the life of the conversation, across reconnects."""
+        """Yield events until the conversation ends, across reconnects."""
 
     @abstractmethod
     async def send_audio(self, pcm: bytes) -> None:
-        """Send PCM16 audio at ``input_sample_rate``. Dropped while the session is reconnecting."""
+        """Send PCM16 audio at ``input_sample_rate``. The provider discards the audio while it reconnects."""
 
     @abstractmethod
     async def send_function_result(self, call_id: str, output: str) -> None:
-        """Hand a tool's result back to the model."""
+        """Send the result of a tool to the model."""
 
     @abstractmethod
     async def request_response(self) -> None:
-        """Have the model respond to the results just sent, unless a response that sees them is already coming."""
+        """Ask the model to respond to the latest tool results, unless a later response will see them anyway."""
 
     @abstractmethod
     async def truncate(self, item_id: str, audio_end_ms: int) -> None:
-        """Cut a spoken item down to the milliseconds the user heard."""
+        """Truncate a spoken item to the milliseconds that the user heard."""
 
     @abstractmethod
     async def delete_item(self, item_id: str) -> None:
-        """Remove a spoken item the user heard none of."""
+        """Remove a spoken item when the user heard no part of it."""
 
     @abstractmethod
     async def disconnect(self) -> None:
-        """End the session. Safe to call more than once."""
+        """End the session. You can call this method more than once."""

@@ -1,4 +1,4 @@
-"""run_until_first_exit: the first loop to end stops the others, and a failure is logged, not raised."""
+"""run_until_first_exit: the first loop to end stops the others, and it logs a failure but does not raise it."""
 
 import asyncio
 import logging

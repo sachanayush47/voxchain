@@ -1,4 +1,4 @@
-"""OpenAI text-to-speech on a ``gpt-realtime-2.1`` session, the replacement for OpenAI's retired TTS models."""
+"""OpenAI text-to-speech on a ``gpt-realtime-2.1`` session, which replaces the retired OpenAI TTS models."""
 
 import base64
 import itertools
@@ -34,13 +34,13 @@ WORD = re.compile(r"\w+")
 
 
 class OpenAITTSProvider(TTSProvider):
-    """Reads text aloud with a realtime model: each batch of sentences is an out-of-band response.
+    """Reads text aloud with a realtime model. Each batch of sentences is one out-of-band response.
 
-    The Realtime API has no "speak this text" call, so the model is instructed to
-    read verbatim. That is prompting, not a guarantee: with ``verify_transcript``
-    the spoken words are checked against the text and a mismatch is logged. One
-    response runs at a time; sentences that arrive meanwhile are spoken together
-    next.
+    The Realtime API has no "speak this text" call, so the instructions tell the
+    model to read the text word for word. This is a prompt, not a guarantee. With
+    ``verify_transcript``, the provider compares the spoken words with the text
+    and logs a mismatch. Only one response runs at a time. The provider speaks the
+    sentences that arrive during a response together, in the next response.
     """
 
     sample_rate = SAMPLE_RATE
@@ -72,19 +72,19 @@ class OpenAITTSProvider(TTSProvider):
             name="OpenAI TTS",
             open=self._open,
             handle=self.handle_event,
-            after_connect=self._advance,  # What was queued before a drop still gets spoken
+            after_connect=self._advance,  # The provider still speaks text that was in the queue before a drop
             after_message=self._after_message,
         )
         self._queue = SpeechQueue()
         self._event_ids = itertools.count()
         self._connected_at = 0.0
-        self._requested: str | None = None  # Event ID of a response.create not yet answered
+        self._requested: str | None = None  # The event ID of a response.create that has no answer yet
         self._active: str | None = None
         self._active_text = ""
-        self._discard = False  # The running (or requested) response was cancelled
+        self._discard = False  # The provider cancelled the current or requested response
 
     def session_config(self) -> dict:
-        """The ``session.update`` payload: audio out only, nothing triggered by input."""
+        """The ``session.update`` payload: audio output only, and input triggers nothing."""
         output = compact(
             {"format": {"type": "audio/pcm", "rate": SAMPLE_RATE}, "voice": self.voice, "speed": self.speed}
         )
@@ -99,7 +99,7 @@ class OpenAITTSProvider(TTSProvider):
         return session
 
     def response_config(self, text: str) -> dict:
-        """An out-of-band response that reads ``text`` aloud without adding it to the session's history."""
+        """An out-of-band response that reads ``text`` aloud and does not add it to the session history."""
         message = {"type": ItemType.MESSAGE, "role": "user", "content": [{"type": "input_text", "text": text}]}
         return {
             "conversation": "none",
@@ -109,13 +109,13 @@ class OpenAITTSProvider(TTSProvider):
         }
 
     async def connect(self) -> None:
-        """Open and configure the session, raising if OpenAI rejects it."""
+        """Open and configure the session. Raise an error if OpenAI rejects it."""
         await self.session.connect()
 
     async def _open(self):
         ws = await open_session(self._connect, api_key=self.api_key, session=self.session_config(), model=self.model)
         self._connected_at = self._clock()
-        self._requested, self._active, self._discard = None, None, False  # A response cut off by a drop is lost
+        self._requested, self._active, self._discard = None, None, False  # A drop loses the current response
         logger.info(f"OpenAI TTS connected | model={self.model} | voice={self.voice}")
         return ws
 
@@ -125,12 +125,12 @@ class OpenAITTSProvider(TTSProvider):
         await self._advance()
 
     async def flush(self) -> None:
-        """Mark the end of a reply; a ``Flushed`` follows its audio."""
+        """Mark the end of a reply. A ``Flushed`` follows the audio of the reply."""
         self._queue.add_flush()
         await self._advance()
 
     async def cancel(self) -> None:
-        """Drop queued sentences and cancel the running response."""
+        """Discard the queued sentences and cancel the current response."""
         self._queue.clear()
         if self._active or self._requested:
             self._discard = True
@@ -142,18 +142,18 @@ class OpenAITTSProvider(TTSProvider):
         return self.session.events()
 
     async def disconnect(self) -> None:
-        """Close the session. Safe to call more than once."""
+        """Close the session. It is safe to call this more than once."""
         await self.session.close()
 
     async def _after_message(self) -> None:
         await self._advance()
         idle = not (self._active or self._requested or self._queue)
         if idle and self._clock() - self._connected_at > MAX_SESSION_AGE_S:
-            logger.info("OpenAI TTS: Replacing the session before its 60-minute limit")
+            logger.info("OpenAI TTS: Session replacement before the 60-minute limit")
             await self.session.replace()
 
     def handle_event(self, event: dict) -> list[TTSEvent]:
-        """Translate one server event, tracking the running response."""
+        """Translate one server event, and update the state of the current response."""
         match event.get("type"):
             case ServerEvent.RESPONSE_CREATED:
                 self._requested, self._active = None, event["response"]["id"]
@@ -173,19 +173,22 @@ class OpenAITTSProvider(TTSProvider):
             case ServerEvent.ERROR:
                 error = event.get("error", {})
                 if error.get("event_id") and error.get("event_id") == self._requested:
-                    self._requested, self._discard = None, False  # The request was rejected; move on
+                    self._requested, self._discard = (
+                        None,
+                        False,
+                    )  # OpenAI rejected the request, so continue with the next one
                 logger.error(f"OpenAI TTS error ({error.get('code')}): {error.get('message')}")
             case other:
-                logger.debug(f"OpenAI TTS: Ignoring {other}")
+                logger.debug(f"OpenAI TTS: Ignored {other}")
         return []
 
     async def _advance(self) -> None:
-        """Start the next response if none is running, releasing the flush markers it passes."""
+        """Start the next response if no response runs, and release the flush markers in front of it."""
         if self._active or self._requested or not self.session.socket.ready:
             return
         flushes, text = self._queue.next_batch()
         for _ in range(flushes):
-            # Released here as well as by server events, so flush markers go through the shared stream.
+            # This runs from server events and from other calls, so flush markers go through the shared stream.
             self.session.emit(Flushed())
         if text:
             event_id = f"voxchain_tts_{next(self._event_ids)}"
@@ -201,7 +204,7 @@ class OpenAITTSProvider(TTSProvider):
 
 
 class SpeechQueue:
-    """Sentences waiting to be spoken, with a marker wherever a reply was flushed."""
+    """Sentences to speak, with a marker at each flush of a reply."""
 
     FLUSH = object()
 
@@ -209,7 +212,7 @@ class SpeechQueue:
         self._items: deque = deque()
 
     def __bool__(self) -> bool:
-        """Whether anything is waiting."""
+        """Whether the queue has items."""
         return bool(self._items)
 
     def add_text(self, text: str) -> None:
@@ -221,15 +224,15 @@ class SpeechQueue:
         self._items.append(self.FLUSH)
 
     def put_back(self, text: str) -> None:
-        """Return text that could not be sent to the front of the queue."""
+        """Add text that the provider did not send to the front of the queue again."""
         self._items.appendleft(text)
 
     def clear(self) -> None:
-        """Drop everything waiting."""
+        """Discard all items."""
         self._items.clear()
 
     def next_batch(self) -> tuple[int, str]:
-        """The flushes reached before the next text, and that text: every sentence up to the next flush, joined."""
+        """The number of flushes before the next text, and that text: all sentences up to the next flush, joined."""
         flushes = 0
         while self._items and self._items[0] is self.FLUSH:
             self._items.popleft()

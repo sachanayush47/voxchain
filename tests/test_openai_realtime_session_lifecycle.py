@@ -128,7 +128,7 @@ async def test_a_tool_result_sent_mid_reconnect_lands_after_the_replayed_call(se
     await settle()
     sending = asyncio.create_task(provider.send_function_result("c1", '"12:00"'))
     await settle()
-    assert not sending.done()  # Waits for a session instead of dropping the result
+    assert not sending.done()  # It waits for a session and does not discard the result
     server.gate.set()
     await asyncio.wait_for(sending, 1)
 
@@ -142,11 +142,11 @@ async def test_an_idle_session_is_replaced_before_the_time_limit_but_not_mid_too
     provider = make()
     await provider.connect()
     _events, task = _reader(provider)
-    clock.now = 56 * 60  # Past the 55-minute replacement point
+    clock.now = 56 * 60  # After the 55-minute point for session replacement
     call = {"type": "function_call", "call_id": "c1", "name": "get_time", "arguments": "{}"}
     server.sockets[0].push(type="response.done", response={"id": "r1", "status": "completed", "output": [call]})
     await settle()
-    assert len(server.sockets) == 1  # A tool result is still owed
+    assert len(server.sockets) == 1  # The provider still owes a tool result
 
     await provider.send_function_result("c1", "{}")
     server.sockets[0].push(type="rate_limits.updated")
@@ -179,9 +179,9 @@ async def test_no_extra_response_when_a_later_one_already_sees_the_results(serve
     socket = server.sockets[0]
     socket.push(type="input_audio_buffer.speech_started", item_id="u1")
     await settle()
-    await provider.request_response()  # The user is talking: hold off
+    await provider.request_response()  # The user speaks, so the provider waits
     socket.push(type="input_audio_buffer.speech_stopped", item_id="u1")
-    socket.push(type="response.created", response={"id": "r2"})  # Their turn's automatic response
+    socket.push(type="response.created", response={"id": "r2"})  # The automatic response to the user turn
     socket.push(type="response.done", response={"id": "r2", "status": "completed", "output": []})
     await settle()
     assert socket.of_type("response.create") == []
@@ -194,7 +194,7 @@ async def test_tool_results_still_get_spoken_when_the_user_spoke_while_the_tool_
     await provider.connect()
     _events, task = _reader(provider)
     socket = server.sockets[0]
-    # "hello?" during a slow tool: its automatic response starts and ends before the result exists.
+    # The user says "hello?" during a slow tool. Its automatic response starts and ends before the result exists.
     socket.push(type="response.created", response={"id": "r2"})
     socket.push(type="response.done", response={"id": "r2", "status": "completed", "output": []})
     await settle()
@@ -217,7 +217,7 @@ async def test_a_refused_create_is_retried_when_the_blocking_response_ends(serve
     )
     socket.push(type="response.created", response={"id": "r_other"})
     await settle()
-    # R_other started after the request, so it sees the results; no second create follows.
+    # The response r_other started after the request, so it sees the results. No second create follows.
     socket.push(type="response.done", response={"id": "r_other", "status": "completed", "output": []})
     await settle()
     assert len(socket.of_type("response.create")) == 1

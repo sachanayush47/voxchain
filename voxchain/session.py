@@ -1,4 +1,4 @@
-"""Keeping a provider's streaming session alive across drops."""
+"""Helpers that keep the session of a provider alive when the connection drops."""
 
 import asyncio
 import json
@@ -10,28 +10,28 @@ import websockets
 
 logger = logging.getLogger(__name__)
 
-# Without a cap, a provider that rejects every connection is re-dialled for the whole call.
-# The first retry skips the delay, so one transient drop costs the user almost nothing.
+# Without a limit, a provider that rejects every connection gets new attempts for the full call.
+# The first reconnect attempt has no delay, so one short drop costs the user almost nothing.
 MAX_RECONNECT_ATTEMPTS = 5
 RECONNECT_DELAY_S = 0.5
 
 
 class SessionLost(Exception):
-    """No working session could be re-established."""
+    """All attempts to open a new session failed."""
 
 
 @dataclass(frozen=True)
 class SessionClosed:
-    """A provider's session died and could not be re-established. Nothing follows."""
+    """The session of a provider stopped, and all attempts to open a new one failed. No events follow."""
 
     reason: str
 
 
 class LiveSocket:
-    """The current websocket of a session, with JSON sends that tolerate it being replaced.
+    """The current websocket of a session, with JSON sends that continue to work when the socket changes.
 
-    Sends go out on whichever socket is attached. While none is (a reconnect is
-    under way), :meth:`send` drops the message and :meth:`send_reliably` waits.
+    Each send goes to the current socket. When there is no socket (during a
+    reconnect), :meth:`send` discards the message and :meth:`send_reliably` waits.
     """
 
     def __init__(self) -> None:
@@ -41,36 +41,39 @@ class LiveSocket:
 
     @property
     def ready(self) -> bool:
-        """Whether a socket is attached and sends will go out."""
+        """Whether a socket is present, so that sends go out."""
         return self._ready.is_set() and self.ws is not None
 
     def attach(self, ws) -> None:
-        """Make ``ws`` the socket sends go to."""
+        """Make ``ws`` the socket that sends go to."""
         self.ws = ws
         self._ready.set()
 
     async def detach(self) -> None:
-        """Close and forget the current socket. Sends wait or drop until the next :meth:`attach`."""
+        """Close and forget the current socket.
+
+        Until the next :meth:`attach`, :meth:`send_reliably` waits and :meth:`send` discards its message.
+        """
         self._ready.clear()
         ws, self.ws = self.ws, None
         if ws is not None:
             try:
                 await ws.close()
             except Exception as e:
-                logger.debug(f"LiveSocket: Error closing socket: {e!r}")
+                logger.debug(f"LiveSocket: The socket did not close cleanly: {e!r}")
 
     async def close(self) -> None:
-        """Detach for good, releasing anything waiting in :meth:`send_reliably`."""
+        """Detach permanently, and release all calls that wait in :meth:`send_reliably`."""
         self.closed = True
         await self.detach()
         self._ready.set()
 
     async def wait_ready(self) -> None:
-        """Wait until a socket is attached (or the socket is closed for good)."""
+        """Wait until there is a socket, or until the socket closes permanently."""
         await self._ready.wait()
 
     async def send(self, payload: dict) -> bool:
-        """Send now if a socket is attached; otherwise drop. Returns whether it went out."""
+        """Send now if there is a socket, or discard the payload if not. The result shows if it went out."""
         ws = self.ws
         if not self._ready.is_set() or ws is None:
             return False
@@ -81,7 +84,7 @@ class LiveSocket:
             return False
 
     async def send_reliably(self, payload: dict) -> bool:
-        """Send, waiting out a reconnect if one is under way. Fails only once the socket is closed for good."""
+        """Send, and wait for a reconnect to complete if necessary. Fail only after the socket closes permanently."""
         while not self.closed:
             await self._ready.wait()
             ws = self.ws
@@ -92,18 +95,19 @@ class LiveSocket:
                 return True
             except websockets.ConnectionClosed:
                 if self.ws is ws:
-                    self._ready.clear()  # Wait for the reader to bring up the replacement
+                    self._ready.clear()  # Wait for the reader to open the replacement socket
         return False
 
 
 class ReconnectingSession[T]:
-    """Reads events from a session and replaces the session whenever it drops or asks to be replaced.
+    """Reads events from a session, and replaces the session when it drops or when the provider asks for a new one.
 
-    ``read`` yields the current session's events. Raising means the session
-    dropped; returning normally means it closed. Either way ``reopen`` builds the
-    next one. :meth:`events` raises :class:`SessionLost` after ``max_attempts``
-    replacements in a row produce no traffic. A replacement the provider asks for
-    with :meth:`request_replacement` is planned, so it never counts as a failure.
+    ``read`` yields the events of the current session. If ``read`` raises, the
+    session dropped. If ``read`` returns normally, the session closed. In both
+    cases, ``reopen`` builds the next session. :meth:`events` raises
+    :class:`SessionLost` after ``max_attempts`` consecutive replacements produce
+    no traffic. A replacement that the provider asks for with
+    :meth:`request_replacement` is planned, so it never counts as a failure.
     """
 
     def __init__(
@@ -124,12 +128,12 @@ class ReconnectingSession[T]:
         self._replacement_requested = False
 
     async def events(self) -> AsyncIterator[T]:
-        """Yield events for as long as a session can be kept alive."""
+        """Yield events for as long as a session stays alive."""
         attempts = 0
         while not self.closed:
             try:
                 async for event in self.read():
-                    attempts = 0  # The session is producing traffic again
+                    attempts = 0  # The session produces traffic again
                     yield event
             except Exception as e:
                 if not self.closed:
@@ -151,15 +155,15 @@ class ReconnectingSession[T]:
                 await self.reopen()
                 logger.info(f"{self.name}: Session restored")
             except Exception as e:
-                # The next read fails fast on the missing session and counts another attempt.
+                # The next read fails immediately because there is no session, and that counts as one more attempt.
                 logger.warning(f"{self.name}: Reconnect attempt {attempts} failed: {e!r}")
 
     def request_replacement(self) -> None:
-        """Have the next end of ``read`` reopen the session at once, without counting it as a failure."""
+        """Make the next end of ``read`` reopen the session immediately. This replacement is not a failure."""
         self._replacement_requested = True
 
     def close(self) -> None:
-        """Mark the session as deliberately ended, so a drop isn't treated as one to recover from."""
+        """Record that the session ended deliberately, so that a later drop does not cause a reconnect."""
         self.closed = True
 
 
@@ -167,15 +171,18 @@ END_OF_STREAM = object()  # The session ended deliberately
 
 
 class ProviderSession[E]:
-    """Everything a websocket provider needs around its vendor logic: the socket, reconnects and one event stream.
+    """The parts of a websocket provider that are not vendor logic: the socket, reconnects and one event stream.
 
-    The provider supplies the vendor-specific parts: ``open`` connects and
-    configures a socket (raising if the vendor rejects it), ``handle`` turns one
-    decoded message into events, ``after_connect`` runs once each socket is live,
-    and ``after_message`` runs after every message (e.g. to start the next request).
-    Events the provider raises itself (from a local VAD, say) go in through
-    :meth:`emit` and share the one stream. :meth:`replace` swaps the socket on
-    purpose; nothing the old socket still delivers gets through.
+    The provider supplies the vendor-specific parts:
+
+    - ``open`` connects and configures a socket. It raises an error if the vendor rejects it.
+    - ``handle`` turns one decoded message into events.
+    - ``after_connect`` runs once after each socket is live.
+    - ``after_message`` runs after every message, for example to start the next request.
+
+    Events that the provider makes itself, for example from a local VAD, go in
+    through :meth:`emit` and use the same stream. :meth:`replace` deliberately
+    swaps the socket. After that, no message from the old socket gets through.
     """
 
     def __init__(
@@ -198,17 +205,17 @@ class ProviderSession[E]:
         self._generation = 0
 
     async def connect(self) -> None:
-        """Open a socket and make it the one sends go to."""
+        """Open a socket and make it the socket that sends go to."""
         self.socket.attach(await self._open())
         if self._after_connect is not None:
             await self._after_connect()
 
     def emit(self, event: E) -> None:
-        """Add an event the provider produced itself to the stream."""
+        """Add an event that the provider made itself to the stream."""
         self._events.put_nowait(event)
 
     async def events(self) -> AsyncIterator[E | SessionClosed]:
-        """Yield events for the life of the conversation, ending with ``SessionClosed`` if the session is lost."""
+        """Yield events for the life of the conversation. After a permanent session loss, ``SessionClosed`` is last."""
         reader = asyncio.create_task(self._forward())
         try:
             while (event := await self._events.get()) is not END_OF_STREAM:
@@ -219,13 +226,13 @@ class ProviderSession[E]:
             reader.cancel()
 
     async def replace(self) -> None:
-        """Swap the socket for a fresh one now, e.g. to abandon in-flight work. Never counts as a failure."""
+        """Swap the socket for a new one now, for example to discard work in progress. This is never a failure."""
         self._generation += 1
         self._reconnecting.request_replacement()
         await self.socket.detach()
 
     async def close(self) -> None:
-        """End the session for good. Safe to call more than once."""
+        """End the session permanently. It is safe to call this more than once."""
         self._reconnecting.close()
         await self.socket.close()
 
@@ -247,7 +254,7 @@ class ProviderSession[E]:
         if ws is None:
             raise ConnectionError("No open socket")
         async for raw in ws:
-            # A replaced socket can still hand over frames it buffered before closing.
+            # A replaced socket can still deliver frames that it buffered before it closed.
             if generation != self._generation:
                 return
             try:

@@ -1,6 +1,6 @@
 # Sessions, protocols and audio
 
-Pieces every provider composes.
+The pieces that each provider composes.
 
 ## Sessions
 
@@ -10,7 +10,7 @@ Pieces every provider composes.
 
 ::: voxchain.events
 
-## Running loops
+## Task loops
 
 ::: voxchain.tasks
 

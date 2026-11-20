@@ -1,4 +1,4 @@
-"""Sarvam AI streaming speech-to-text over a websocket."""
+"""Sarvam AI speech-to-text on a websocket stream."""
 
 import base64
 import logging
@@ -15,10 +15,10 @@ logger = logging.getLogger(__name__)
 
 
 class SarvamSTTProvider(STTProvider):
-    """Sarvam ``saaras``/``saarika`` transcription, with Sarvam's own voice activity signals for barge-in.
+    """Sarvam ``saaras``/``saarika`` transcription, with the voice activity signals of Sarvam for barge-in.
 
-    ``extra_params`` passes any other Sarvam connection parameter through as-is,
-    e.g. VAD tuning such as ``{"interrupt_min_speech_frames": 4}``.
+    ``extra_params`` sends other Sarvam connection parameters without change,
+    for example a VAD setting such as ``{"interrupt_min_speech_frames": 4}``.
     """
 
     def __init__(
@@ -36,7 +36,7 @@ class SarvamSTTProvider(STTProvider):
         connect: Callable = websockets.connect,
     ) -> None:
         if sample_rate not in (8000, 16000):
-            raise ValueError(f"Sarvam streaming takes 8000 or 16000 Hz audio, got {sample_rate}")
+            raise ValueError(f"The Sarvam STT stream takes 8000 or 16000 Hz audio, got {sample_rate}")
         self.api_key = api_key
         self.model = model
         self.mode = mode
@@ -51,7 +51,7 @@ class SarvamSTTProvider(STTProvider):
         self.session = ProviderSession(name="Sarvam STT", open=self._open, handle=self.handle_message)
 
     def query(self) -> dict:
-        """The connection parameters. ``None`` values are left out so Sarvam's defaults apply."""
+        """The connection parameters. Sarvam's defaults apply to ``None`` values."""
         return {
             "language-code": self.language_code,
             "model": self.model,
@@ -74,7 +74,7 @@ class SarvamSTTProvider(STTProvider):
         return ws
 
     async def send_audio(self, pcm: bytes) -> None:
-        """Send PCM16 audio at ``sample_rate``. Dropped while the socket is reconnecting."""
+        """Send PCM16 audio at ``sample_rate``. The provider discards audio during a reconnect."""
         audio = {
             "data": base64.b64encode(pcm).decode("ascii"),
             "encoding": "audio/wav",
@@ -83,7 +83,7 @@ class SarvamSTTProvider(STTProvider):
         await self.session.socket.send({"audio": audio})
 
     async def flush(self) -> None:
-        """Have Sarvam finalize buffered audio now instead of waiting for silence. Needs ``flush_signal=True``."""
+        """Make Sarvam finalize the buffered audio now, and not wait for silence. This needs ``flush_signal=True``."""
         await self.session.socket.send({"type": STTClientMessage.FLUSH})
 
     def receive_events(self) -> AsyncIterator[STTEvent]:
@@ -91,7 +91,7 @@ class SarvamSTTProvider(STTProvider):
         return self.session.events()
 
     async def disconnect(self) -> None:
-        """Close the socket. Safe to call more than once."""
+        """Close the socket. It is safe to call this more than once."""
         await self.session.close()
 
     def handle_message(self, message: dict) -> list[STTEvent]:
@@ -108,9 +108,9 @@ class SarvamSTTProvider(STTProvider):
                         return [SpeechStarted()]
                     case STTSignal.END_SPEECH:
                         return [SpeechStopped()]
-                logger.debug(f"Sarvam STT: Ignoring signal {data.get('signal_type')!r}")
+                logger.debug(f"Sarvam STT: Ignored signal {data.get('signal_type')!r}")
             case STTServerMessage.ERROR:
                 logger.error(f"Sarvam STT error ({data.get('code')}): {data.get('error')}")
             case other:
-                logger.debug(f"Sarvam STT: Ignoring {other!r}")
+                logger.debug(f"Sarvam STT: Ignored {other!r}")
         return []

@@ -1,4 +1,4 @@
-"""Running LangChain tools on behalf of a speech-to-speech model."""
+"""Runs LangChain tools for a speech-to-speech model."""
 
 import asyncio
 import json
@@ -14,7 +14,7 @@ from voxchain.realtime.events import FunctionCall
 
 logger = logging.getLogger(__name__)
 
-NOT_RUN_OUTPUT = json.dumps({"error": "Not run: the user interrupted before this tool call was carried out."})
+NOT_RUN_OUTPUT = json.dumps({"error": "Not run: the user interrupted before the tool ran."})
 
 
 def tool_spec(tool: BaseTool) -> ToolSpec:
@@ -25,7 +25,7 @@ def tool_spec(tool: BaseTool) -> ToolSpec:
 
 
 class ToolRunner:
-    """Runs the model's tool calls and renders each result, or error, as a string for the model."""
+    """Runs the tool calls of the model and returns each result, or error, as a string for the model."""
 
     def __init__(self, tools: Sequence[BaseTool]) -> None:
         self.tools = {tool.name: tool for tool in tools}
@@ -33,26 +33,26 @@ class ToolRunner:
             raise ValueError("Tool names must be unique")
 
     def specs(self) -> list[ToolSpec]:
-        """The tools, described for a provider."""
+        """The descriptions of the tools for a provider."""
         return [tool_spec(tool) for tool in self.tools.values()]
 
     async def run_all(self, calls: list[FunctionCall]) -> list[str]:
-        """Run calls concurrently; results come back in call order."""
+        """Run the calls concurrently and return the results in the order of the calls."""
         return list(await asyncio.gather(*(self.run(call) for call in calls)))
 
     async def run(self, call: FunctionCall) -> str:
-        """Run one call. Failures come back as a JSON error the model can react to, never as an exception."""
+        """Run one call. On failure, return a JSON error that the model can respond to, and never raise an exception."""
         tool = self.tools.get(call.name)
         if tool is None:
-            logger.warning(f"ToolRunner: Model called unknown tool {call.name!r}")
+            logger.warning(f"ToolRunner: The model called an unknown tool {call.name!r}")
             return json.dumps({"error": f"Unknown tool {call.name!r}."})
         try:
             args = json.loads(call.arguments)
         except json.JSONDecodeError:
             logger.warning(f"ToolRunner: Invalid arguments for {call.name}: {call.arguments!r}")
-            return json.dumps({"error": "Arguments were not valid JSON."})
+            return json.dumps({"error": "The arguments are not valid JSON."})
 
-        logger.debug(f"ToolRunner: Calling {call.name}({call.arguments})")
+        logger.debug(f"ToolRunner: Tool call {call.name}({call.arguments})")
         try:
             result = await tool.ainvoke({"type": "tool_call", "id": call.call_id, "name": call.name, "args": args})
         except Exception as e:

@@ -1,4 +1,4 @@
-"""Text-to-speech providers and the interface they implement."""
+"""Text-to-speech providers and the interface that they implement."""
 
 from voxchain.session import SessionClosed
 from voxchain.tts.base import TTSProvider

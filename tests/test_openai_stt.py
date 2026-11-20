@@ -1,4 +1,4 @@
-"""OpenAISTTProvider: local VAD drives turns, only speech is streamed, transcripts come out in speech order."""
+"""OpenAISTTProvider: local VAD controls user turns, only speech goes out, and transcripts arrive in speech order."""
 
 import asyncio
 import base64
@@ -52,7 +52,7 @@ async def test_only_speech_is_streamed_and_each_segment_is_committed(openai_serv
     sent = openai_server.sockets[0].sent[1:]  # After session.update
     assert [m["type"] for m in sent][-1] == "input_audio_buffer.commit"
     streamed = sum(len(base64.b64decode(m["audio"])) for m in sent if m["type"] == "input_audio_buffer.append")
-    # Pre-roll (8 windows) + 7 speech + 16 hangover - the windows before the pre-roll; upsampled by 1.5
+    # Pre-roll (8 windows) + 7 speech + 16 hangover - the windows before the pre-roll. The provider upsamples by 1.5.
     assert abs(streamed - (25 - 1) * WINDOW * 1.5) <= 4
 
 

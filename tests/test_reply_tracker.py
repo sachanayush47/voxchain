@@ -1,4 +1,4 @@
-"""ReplyTracker: which replies are live, and what a barge-in cancels or hands back."""
+"""ReplyTracker: which replies are live, and what a barge-in cancels or returns for a resume."""
 
 from voxchain.core import ReplyTracker
 
@@ -47,7 +47,7 @@ def test_a_reply_already_synthesized_can_still_be_resumed_while_it_plays():
     tracker.finished_generating(reply)
     interruption = tracker.interrupt(now=1.5)
     assert interruption.resume_text == "I want to"
-    assert not interruption.cancel_synthesis  # Nothing left for TTS to drop
+    assert not interruption.cancel_synthesis  # TTS has nothing left to discard
 
 
 def test_no_resume_window_never_merges():

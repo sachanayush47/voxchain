@@ -1,4 +1,4 @@
-"""ResponseGate: a requested response is created once, never over the user, never as a duplicate."""
+"""ResponseGate: a requested response starts once, never over the user and never as a duplicate."""
 
 from voxchain.realtime import ResponseGate
 
@@ -32,7 +32,7 @@ def test_the_users_turn_holds_the_request_until_its_automatic_response_starts():
     gate.user_started_speaking()
     gate.request()
     assert not gate.should_create()
-    gate.response_created("r_auto")  # Created after the request, so it already sees the results
+    gate.response_created("r_auto")  # This response started after the request, so it already sees the results
     assert not gate.wanted
 
 
@@ -66,7 +66,7 @@ def test_an_error_for_some_other_event_is_not_a_refusal():
     gate.request()
     gate.creating("e1")
     gate.refused("e9")
-    assert not gate.should_create()  # Still in flight
+    assert not gate.should_create()  # The create request is still pending
     gate.create_failed()
     assert gate.should_create()
 

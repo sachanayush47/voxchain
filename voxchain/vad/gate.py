@@ -1,10 +1,10 @@
-"""Cutting a PCM16 stream into speech segments with a local voice activity model."""
+"""Cuts a PCM16 stream into speech segments with a local model for voice activity."""
 
 from collections import deque
 from dataclasses import dataclass
 from typing import Protocol
 
-# Silero's recommended hysteresis: a window is silence only well below the speech threshold.
+# Silero recommends this hysteresis: a window is silence only if it scores well below the speech threshold.
 NEGATIVE_THRESHOLD_GAP = 0.15
 
 
@@ -15,13 +15,13 @@ class VoiceActivityModel(Protocol):
     window_bytes: int
 
     def speech_probability(self, window: bytes) -> float:
-        """Probability, 0.0-1.0, that one window holds speech."""
+        """The probability (0.0 to 1.0) that one window contains speech."""
         ...
 
 
 @dataclass(frozen=True)
 class SegmentStarted:
-    """Speech began. ``audio`` is the pre-roll plus the speech that confirmed it."""
+    """Speech started. ``audio`` is the pre-roll and the speech that confirmed the start."""
 
     audio: bytes
 
@@ -44,11 +44,11 @@ Segment = SegmentStarted | SegmentAudio | SegmentEnded
 
 
 class VoiceGate:
-    """Feeds audio through a VAD model and reports speech segments, so only speech needs to go anywhere.
+    """Puts audio through a VAD model and reports speech segments, so that only speech must go further.
 
     A segment opens after ``start_ms`` of continuous speech and closes after
-    ``stop_ms`` of silence. ``prefix_ms`` of audio before the onset is included
-    so the first word isn't clipped.
+    ``stop_ms`` of silence. The segment includes ``prefix_ms`` of audio from
+    before the speech starts, so that it does not clip the first word.
     """
 
     def __init__(
@@ -73,7 +73,7 @@ class VoiceGate:
         self.speaking = False
 
     def push(self, chunk: bytes) -> list[Segment]:
-        """Score the audio in ``chunk`` and report what happened to the segment."""
+        """Score the audio in ``chunk`` and report the changes to the segment."""
         self._pending += chunk
         segments: list[Segment] = []
         size = self.vad.window_bytes

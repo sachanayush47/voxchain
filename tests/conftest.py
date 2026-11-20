@@ -68,15 +68,15 @@ class FakeSocket:
 
 
 class FakeServer:
-    """Hands out FakeSockets. ``openai=True`` adds OpenAI's session.created/session.updated handshake."""
+    """Gives FakeSockets to providers. ``openai=True`` adds OpenAI's session.created/session.updated handshake."""
 
     def __init__(self, *, openai: bool):
         self.openai = openai
         self.sockets: list[FakeSocket] = []
         self.reject = False
         self.refuse = False
-        self.rejections = 0  # Reject only this many handshakes, then accept
-        self.gate: asyncio.Event | None = None  # When set, connects wait for it
+        self.rejections = 0  # The number of handshakes to reject before the server accepts
+        self.gate: asyncio.Event | None = None  # If set, each connect waits for this event
 
     async def connect(self, url, additional_headers=None, **kwargs):
         if self.gate is not None:

@@ -50,7 +50,7 @@ async def test_each_flush_yields_one_flushed_after_its_audio(plain_server, settl
     assert [m["type"] for m in socket.sent[1:]] == ["text", "flush"]
     socket.push(**_audio(b"\x01\x02"))
     socket.push(type="event", data={"event_type": "final"})
-    socket.push(type="event", data={"event_type": "final"})  # Unasked-for: ignored
+    socket.push(type="event", data={"event_type": "final"})  # The provider did not ask for this marker and ignores it
     await settle()
     assert events == [AudioChunk(b"\x01\x02"), Flushed()]
     await tts.disconnect()
@@ -65,7 +65,7 @@ async def test_cancel_replaces_the_socket_and_drops_what_the_old_one_still_sends
     await tts.speak("A long reply.")
     await tts.flush()
     old = plain_server.sockets[0]
-    old.push(**_audio(b"stale"))  # Buffered before the cancel lands
+    old.push(**_audio(b"stale"))  # The old socket buffered this audio before the cancel arrived
     await tts.cancel()
     await settle()
     await tts.speak("Next.")
@@ -85,10 +85,10 @@ async def test_cancels_are_planned_replacements_that_never_count_toward_giving_u
     await tts.connect()
     events = []
     reader = asyncio.create_task(_collect(tts, events))
-    for _ in range(7):  # More than the five failed attempts that would end the session
+    for _ in range(7):  # Five failed attempts end a session, so seven cancels are more than that limit
         await tts.cancel()
         await settle()
     assert len(plain_server.sockets) == 8
-    assert events == []  # In particular, no SessionClosed
+    assert events == []  # Specifically, the provider sends no SessionClosed
     await tts.disconnect()
     await reader

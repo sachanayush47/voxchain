@@ -1,4 +1,4 @@
-"""Speech-to-text providers and the interface they implement."""
+"""Speech-to-text providers and the interface that they implement."""
 
 from voxchain.session import SessionClosed
 from voxchain.stt.base import STTProvider

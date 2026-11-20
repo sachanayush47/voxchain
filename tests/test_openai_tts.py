@@ -87,7 +87,7 @@ async def test_cancel_drops_queued_text_and_the_running_responses_audio(openai_s
     socket.push(type="response.done", response={"id": "r1", "status": "cancelled"})
     await settle()
     assert events == []
-    assert len(socket.of_type("response.create")) == 1  # "More." was dropped with the cancel
+    assert len(socket.of_type("response.create")) == 1  # The cancel discarded "More."
     await tts.disconnect()
     await reader
 

@@ -1,4 +1,4 @@
-"""OpenAIRealtimeProvider.handle_event: server events in, pipeline events and replayable history out."""
+"""OpenAIRealtimeProvider.handle_event: it turns server events into pipeline events and replayable history."""
 
 import base64
 

@@ -42,9 +42,9 @@ logger = logging.getLogger(__name__)
 class OpenAIRealtimeProvider(RealtimeProvider):
     """A ``gpt-realtime-2.1`` conversation: OpenAI's turn detection, transcription, speech and tool calls.
 
-    The conversation is replayed as text into a fresh session after a drop or
-    before the 60-minute limit (see :class:`~voxchain.realtime.history.ConversationHistory`).
-    User turns replay from their transcripts, so keep ``transcription_model`` set.
+    The provider replays the conversation as text into a new session after a connection
+    failure or before the 60-minute limit (see :class:`~voxchain.realtime.history.ConversationHistory`).
+    User turns replay from their transcripts. Thus, keep ``transcription_model`` set.
     """
 
     input_sample_rate = SAMPLE_RATE
@@ -105,7 +105,7 @@ class OpenAIRealtimeProvider(RealtimeProvider):
             name="OpenAI Realtime",
             open=self._open,
             handle=self.handle_event,
-            after_connect=self._maybe_create_response,  # A response owed before a drop is still owed
+            after_connect=self._maybe_create_response,  # A response owed before a connection failure is still owed
             after_message=self._after_message,
         )
         self._tools: list[ToolSpec] = []
@@ -114,11 +114,11 @@ class OpenAIRealtimeProvider(RealtimeProvider):
         self._user_speaking = False
 
     def set_tools(self, tools: list[ToolSpec]) -> None:
-        """Declare the tools the model may call. Call before :meth:`connect`."""
+        """Set the tools that the model can call. Call this method before :meth:`connect`."""
         self._tools = list(tools)
 
     def session_config(self) -> dict:
-        """The ``session.update`` payload. Unset options are left out so OpenAI's defaults apply."""
+        """The ``session.update`` payload. It leaves out unset options, so OpenAI's defaults apply."""
         turn_detection = {
             "type": self.turn_detection,
             "create_response": True,
@@ -167,24 +167,24 @@ class OpenAIRealtimeProvider(RealtimeProvider):
         return compact(config)
 
     def history_items(self) -> list[dict]:
-        """The conversation so far as ``conversation.item.create`` items for a fresh session."""
+        """The conversation until now, as ``conversation.item.create`` items for a new session."""
         return [_replay_item(turn) for turn in self.history.replay()]
 
     async def connect(self) -> None:
-        """Open a session, configure it and replay the conversation, raising if OpenAI rejects any of it."""
+        """Open a session, configure it and replay the conversation. Raise an error if OpenAI rejects a step."""
         await self.session.connect()
 
     def receive_events(self) -> AsyncIterator[RealtimeEvent]:
-        """Yield events for the life of the conversation, across reconnects."""
+        """Yield events until the conversation ends, across reconnects."""
         return self.session.events()
 
     async def disconnect(self) -> None:
-        """End the session. Safe to call more than once."""
+        """End the session. You can call this method more than once."""
         await self.session.close()
 
     async def _open(self):
         if lost := self.responses.active:
-            # The in-flight response died with the old socket; the pipeline still needs its ResponseDone.
+            # The active response stopped with the old socket, but the pipeline still needs its ResponseDone.
             self.responses.response_done(lost)
             self.session.emit(ResponseDone(response_id=lost, status="failed"))
         started = self._clock()
@@ -209,11 +209,11 @@ class OpenAIRealtimeProvider(RealtimeProvider):
         await self._maybe_create_response()
         idle = self.responses.idle and self.history.settled and not self._user_speaking
         if idle and self._clock() - self._connected_at > MAX_SESSION_AGE_S:
-            logger.info("OpenAI Realtime: Replacing the session before its 60-minute limit")
+            logger.info("OpenAI Realtime: Session replacement before the 60-minute limit")
             await self.session.replace()
 
     def handle_event(self, event: dict) -> list[RealtimeEvent]:
-        """Translate one server event, updating the conversation history and response state."""
+        """Translate one server event and update the conversation history and the response state."""
         event_type = event.get("type", "")
         match event_type:
             case ServerEvent.INPUT_AUDIO_BUFFER_SPEECH_STARTED:
@@ -271,7 +271,7 @@ class OpenAIRealtimeProvider(RealtimeProvider):
                 return []
 
             case _:
-                logger.debug(f"OpenAI Realtime: Ignoring {event_type}")
+                logger.debug(f"OpenAI Realtime: Ignored event {event_type}")
                 return []
 
     def _record_output_item(self, item: dict) -> None:
@@ -290,7 +290,7 @@ class OpenAIRealtimeProvider(RealtimeProvider):
 
         events: list[RealtimeEvent] = []
         for item in response.get("output") or []:
-            # Status is optional on function calls; only an incomplete one lacks usable arguments.
+            # Status is optional on function calls. Only an incomplete call has no usable arguments.
             if item.get("type") == ItemType.FUNCTION_CALL and item.get("status") != "incomplete":
                 self.history.open_call(item["call_id"])
                 arguments = item.get("arguments") or "{}"
@@ -299,13 +299,13 @@ class OpenAIRealtimeProvider(RealtimeProvider):
         return events
 
     async def send_audio(self, pcm: bytes) -> None:
-        """Send PCM16 audio at 24 kHz. Dropped while the session is reconnecting."""
+        """Send PCM16 audio at 24 kHz. The provider discards the audio while it reconnects."""
         await self.session.socket.send(
             {"type": ClientEvent.INPUT_AUDIO_BUFFER_APPEND, "audio": base64.b64encode(pcm).decode("ascii")}
         )
 
     async def send_function_result(self, call_id: str, output: str) -> None:
-        """Add a tool's result to the conversation, waiting out a reconnect if one is under way."""
+        """Add the result of a tool to the conversation. If a reconnect is in progress, wait until it ends."""
         item = {"type": ItemType.FUNCTION_CALL_OUTPUT, "call_id": call_id, "output": output}
         if await self.session.socket.send_reliably({"type": ClientEvent.CONVERSATION_ITEM_CREATE, "item": item}):
             self.history.function_result(call_id, output)
@@ -313,7 +313,7 @@ class OpenAIRealtimeProvider(RealtimeProvider):
             self.history.close_call(call_id)
 
     async def request_response(self) -> None:
-        """Have the model respond to the results just sent, unless a response created after now will see them."""
+        """Ask the model to respond to the latest tool results, unless a later response will see them anyway."""
         self.responses.request()
         await self._maybe_create_response()
 
@@ -326,7 +326,7 @@ class OpenAIRealtimeProvider(RealtimeProvider):
             self.responses.create_failed()
 
     async def truncate(self, item_id: str, audio_end_ms: int) -> None:
-        """Cut a spoken item down to the milliseconds the user heard."""
+        """Truncate a spoken item to the milliseconds that the user heard."""
         self.history.heard(item_id, audio_end_ms)
         await self.session.socket.send(
             {
@@ -338,7 +338,7 @@ class OpenAIRealtimeProvider(RealtimeProvider):
         )
 
     async def delete_item(self, item_id: str) -> None:
-        """Remove a spoken item the user heard none of."""
+        """Remove a spoken item when the user heard no part of it."""
         self.history.remove(item_id)
         await self.session.socket.send({"type": ClientEvent.CONVERSATION_ITEM_DELETE, "item_id": item_id})
 

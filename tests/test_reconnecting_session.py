@@ -1,4 +1,4 @@
-"""ReconnectingSession: drops are recovered, and endless failure ends in SessionLost."""
+"""ReconnectingSession: it recovers lost connections, and endless failure ends in SessionLost."""
 
 import pytest
 

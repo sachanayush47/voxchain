@@ -42,7 +42,7 @@ jobs:
   publish:
     needs: build
     runs-on: ubuntu-latest
-    # Must match the pending publisher registered on PyPI (repo, workflow file and environment)
+    # This must match the pending publisher that you registered on PyPI (repo, workflow file and environment)
     environment: pypi
     permissions:
       id-token: write

@@ -1,4 +1,4 @@
-"""The conversation a speech-to-speech provider replays into a fresh session."""
+"""The conversation that a speech-to-speech provider replays into a new session."""
 
 from dataclasses import dataclass
 from typing import Literal
@@ -21,7 +21,7 @@ class Turn:
     heard_ms: float | None = None
 
     def heard_text(self) -> str:
-        """The text, cut in proportion to how much of the audio the user heard."""
+        """The text, cut in proportion to the part of the audio that the user heard."""
         words = self.text.split()
         if self.heard_ms is not None and self.audio_ms:
             words = words[: round(len(words) * min(1.0, self.heard_ms / self.audio_ms))]
@@ -29,11 +29,11 @@ class Turn:
 
 
 class ConversationHistory:
-    """Keeps turns in conversation order as their pieces arrive, and knows when nothing is still in flight.
+    """Keeps turns in conversation order when their parts arrive, and knows when nothing is pending.
 
-    A user turn's slot is taken when its audio is committed and filled when its
-    transcript arrives, so a late transcript still replays ahead of the reply it
-    prompted.
+    A user turn gets its position in the order when the server commits its
+    audio. The turn gets its text when its transcript arrives. Thus a late
+    transcript still replays before the assistant turn that it caused.
     """
 
     def __init__(self) -> None:
@@ -44,7 +44,7 @@ class ConversationHistory:
 
     @property
     def settled(self) -> bool:
-        """No transcript is outstanding and no tool result is owed, so a session swap loses nothing."""
+        """Whether no transcript is pending and no tool result is owed, so a session replacement loses nothing."""
         return not self._awaiting_transcripts and not self._open_calls
 
     def _turn(self, item_id: str, kind: TurnKind) -> Turn:
@@ -54,13 +54,13 @@ class ConversationHistory:
         return self._by_item[item_id]
 
     def user_turn(self, item_id: str, *, awaiting_transcript: bool) -> None:
-        """The user's audio for a turn was committed."""
+        """The server committed the audio of a user turn."""
         self._turn(item_id, "user")
         if awaiting_transcript:
             self._awaiting_transcripts.add(item_id)
 
     def user_transcript(self, item_id: str, text: str | None) -> None:
-        """A user turn's transcript arrived, or ``None`` if transcription failed."""
+        """The transcript of a user turn arrived, or ``None`` if the transcription failed."""
         self._awaiting_transcripts.discard(item_id)
         if text:
             self._turn(item_id, "user").text = text
@@ -83,12 +83,15 @@ class ConversationHistory:
         self._open_calls.add(call_id)
 
     def function_result(self, call_id: str, output: str) -> None:
-        """A tool result was delivered. Recorded only once sent, so a replay never puts it ahead of its call."""
+        """The provider sent a tool result. The history records it only after the send.
+
+        Thus a replay never puts the result before its call.
+        """
         self._open_calls.discard(call_id)
         self._turns.append(Turn(kind="function_call_output", call_id=call_id, output=output))
 
     def close_call(self, call_id: str) -> None:
-        """Stop owing a result for a call, e.g. when it could not be delivered."""
+        """Close a call without a result, for example when the provider cannot send it."""
         self._open_calls.discard(call_id)
 
     def heard(self, item_id: str, ms: float) -> None:
@@ -97,12 +100,12 @@ class ConversationHistory:
             turn.heard_ms = ms
 
     def remove(self, item_id: str) -> None:
-        """Drop an item, e.g. a reply the user heard none of."""
+        """Remove an item, for example an assistant item when the user heard no part of it."""
         if turn := self._by_item.pop(item_id, None):
             self._turns.remove(turn)
 
     def replay(self) -> list[Turn]:
-        """The turns worth restoring, in order: empty user and assistant turns are skipped."""
+        """The turns to restore, in order. The list skips empty user and assistant turns."""
         return [turn for turn in self._turns if _worth_replaying(turn)]
 
 

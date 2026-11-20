@@ -34,7 +34,7 @@ def test_a_playback_gap_does_not_count_as_heard():
 def test_an_item_that_never_reached_the_client_is_deleted():
     tracker = PlaybackTracker()
     tracker.response_started("r1")
-    assert tracker.accept("r1", "a1", 300) == AudioAction.PLAY  # Queued, not yet played
+    assert tracker.accept("r1", "a1", 300) == AudioAction.PLAY  # The audio is in the queue and did not play yet
     assert tracker.barge_in(now=0.0) == [Cut("a1", 0)]
 
 
@@ -65,4 +65,4 @@ def test_a_response_reports_whether_it_spoke_and_whether_it_was_interrupted():
     tracker.barge_in(now=0.1)
     outcome = tracker.response_done("r2")
     assert outcome.spoke and outcome.interrupted
-    assert not tracker.is_discarded("r2")  # Forgotten once finished
+    assert not tracker.is_discarded("r2")  # The tracker forgets a reply after it finishes

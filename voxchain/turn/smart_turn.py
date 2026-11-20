@@ -1,12 +1,12 @@
-"""An :class:`~voxchain.turn.base.EndOfTurnDetector` backed by pipecat's Smart Turn v3 model.
+"""An :class:`~voxchain.turn.base.EndOfTurnDetector` that uses the Smart Turn v3 model from pipecat.
 
-`Smart Turn <https://github.com/pipecat-ai/smart-turn>`_ is a small
-(~8 MB) audio classifier that listens to the end of an utterance -- intonation,
-trailing fillers, cut-off words -- and predicts whether the speaker has
-finished. It runs locally on CPU via ONNX Runtime in tens of milliseconds and
-needs no API key.
+`Smart Turn <https://github.com/pipecat-ai/smart-turn>`_ is a small audio
+classifier (approximately 8 MB). It examines the end of an utterance, for
+example the intonation, filler words and incomplete words. Then it predicts if
+the speaker finished. It runs locally on CPU with ONNX Runtime in tens of
+milliseconds, and it needs no API key.
 
-Requires the ``smart-turn`` extra: ``pip install "voxchain[smart-turn]"``.
+This module requires the ``smart-turn`` extra: ``pip install "voxchain[smart-turn]"``.
 """
 
 import asyncio
@@ -18,10 +18,10 @@ from voxchain.turn.base import EndOfTurnDetector
 logger = logging.getLogger(__name__)
 
 SMART_TURN_REPO = "pipecat-ai/smart-turn-v3"
-"""Hugging Face repo the model is downloaded from."""
+"""The Hugging Face repo from which voxchain downloads the model."""
 
 SMART_TURN_FILENAME = "smart-turn-v3.2-cpu.onnx"
-"""Model file within :data:`SMART_TURN_REPO` (the CPU-optimized v3.2 build)."""
+"""The model file in :data:`SMART_TURN_REPO` (the v3.2 build, optimized for CPU)."""
 
 
 MODEL_SAMPLE_RATE = 16000
@@ -30,20 +30,21 @@ PRE_ROLL_SECONDS = 1.0
 
 
 class PipecatSmartTurnDetector(EndOfTurnDetector):
-    """Predicts end-of-turn from the user's audio with Smart Turn v3.
+    """Predicts the end of turn from the user's audio with Smart Turn v3.
 
-    Buffers the input audio since the user's turn started and, on each
-    finalized transcript, scores the last 8 seconds of it. A score at or
-    above ``threshold`` means the turn is complete; raise it to wait more
-    readily for the user to continue, lower it to respond sooner.
+    The detector keeps the input audio from the start of the user turn in a
+    buffer. For each finalized transcript, it scores the last 8 seconds of this
+    audio. A score equal to or more than ``threshold`` means that the turn is
+    complete. Increase ``threshold`` to wait more often for the user to
+    continue. Decrease it to reply sooner.
 
-    Input audio must be mono 16-bit little-endian PCM (``pcm_s16le``) -- the
-    same format :class:`~voxchain.stt.sarvam.SarvamSTTProvider` takes by
-    default. 8 kHz audio is upsampled to the 16 kHz the model expects.
+    Input audio must be mono 16-bit little-endian PCM (``pcm_s16le``). This is
+    the default format of :class:`~voxchain.stt.sarvam.SarvamSTTProvider`. The
+    detector upsamples 8 kHz audio to the 16 kHz that the model expects.
 
-    The model is downloaded from Hugging Face on first use and cached;
-    construction loads it synchronously, so create the detector once at
-    startup.
+    At first use, the detector downloads the model from Hugging Face and
+    caches it. The constructor loads the model synchronously, so create the
+    detector one time at startup.
 
     Example:
         >>> detector = PipecatSmartTurnDetector(sample_rate=16000)
@@ -85,14 +86,14 @@ class PipecatSmartTurnDetector(EndOfTurnDetector):
         self._audio = bytearray()
 
     def push_audio(self, chunk: bytes) -> None:
-        """Append ``chunk`` to the turn buffer, keeping only the last 8 seconds."""
+        """Add ``chunk`` to the turn buffer, and keep only the last 8 seconds."""
         self._audio += chunk
         overflow = len(self._audio) - WINDOW_SECONDS * self._bytes_per_second
         if overflow > 0:
             del self._audio[: overflow + overflow % 2]
 
     def start_turn(self) -> None:
-        """Drop buffered audio from before this turn, keeping a short pre-roll."""
+        """Discard the buffered audio from before this turn, but keep a short pre-roll."""
         keep = int(PRE_ROLL_SECONDS * self._bytes_per_second)
         keep -= keep % 2
         if len(self._audio) > keep:
@@ -110,8 +111,9 @@ class PipecatSmartTurnDetector(EndOfTurnDetector):
     def predict(self, audio: bytes) -> float:
         """Return Smart Turn's completion probability for ``audio``.
 
-        Blocking (runs ONNX inference); :meth:`is_end_of_turn` calls it off
-        the event loop. Mirrors pipecat's reference ``predict_endpoint``.
+        This method blocks because it runs ONNX inference. :meth:`is_end_of_turn`
+        calls it outside the event loop. It does the same steps as
+        ``predict_endpoint``, the reference function from pipecat.
         """
         import numpy as np
 

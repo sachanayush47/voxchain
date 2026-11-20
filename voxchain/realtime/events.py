@@ -1,4 +1,4 @@
-"""Events a speech-to-speech provider yields to the pipeline."""
+"""Events that a speech-to-speech provider yields to the pipeline."""
 
 from dataclasses import dataclass
 
@@ -7,7 +7,7 @@ from voxchain.events import SessionClosed, SpeechStarted, SpeechStopped
 
 @dataclass(frozen=True)
 class UserTranscript:
-    """What the user said in one turn."""
+    """What the user said in one user turn."""
 
     text: str
 
@@ -39,12 +39,12 @@ class AgentTranscript:
 
 @dataclass(frozen=True)
 class FunctionCall:
-    """The model wants a tool run. Yielded just before its response's ``ResponseDone``."""
+    """The model asks for a tool call. The provider yields it just before the ``ResponseDone`` of its response."""
 
     response_id: str
     call_id: str
     name: str
-    arguments: str  # JSON object string
+    arguments: str  # A JSON object as a string
 
 
 @dataclass(frozen=True)

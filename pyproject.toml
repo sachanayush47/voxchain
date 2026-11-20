@@ -43,7 +43,7 @@ all = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["voxchain*"]  # Only the library; docs output, tests and scripts stay out of the wheel
+include = ["voxchain*"]  # Only the library. The wheel does not include the docs output, tests or scripts
 
 [dependency-groups]
 dev = [
@@ -54,6 +54,7 @@ dev = [
     "sounddevice>=0.5.5",
     "python-dotenv>=1.2.2",
     "voxchain[vad,smart-turn]",
+    "ruff>=0.17.6",
 ]
 
 [tool.pytest.ini_options]
@@ -62,7 +63,7 @@ asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "--strict-markers"
-faulthandler_timeout = 30  # A hung async test dumps its stack instead of stalling the run
+faulthandler_timeout = 30  # A hung async test dumps its stack, so the run does not hang silently
 
 [tool.ruff]
 line-length = 120
@@ -83,16 +84,16 @@ select = [
     "D",    # Docstrings (pydocstyle): they are the published API reference
 ]
 ignore = [
-    "D107",  # __init__ docstring: mkdocstrings merges init into the class, which documents itself
+    "D107",  # __init__ docstring: mkdocstrings merges __init__ into the class, and the class docstring documents it
 ]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
-# Runnable example, not part of the published API surface.
+# An example that you can run. It is not part of the published API.
 "main.py" = ["D100", "D103"]
-# Intentionally-empty stubs (see AGENTS.md) -- nothing to document yet.
+# Stubs that are empty on purpose (see AGENTS.md). They have nothing to document yet.
 "voxchain/exceptions.py" = ["D100"]
 "voxchain/vad/base.py" = ["D100"]
 "tests/*" = ["D101", "D102", "D103", "D105", "D107"]  # Test doubles need no docstrings

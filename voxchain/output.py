@@ -1,4 +1,4 @@
-"""What a pipeline tells the client: audio to play, when to stop, and how the conversation is going."""
+"""The events that a pipeline sends to the client: audio to play, when to stop, and the state of the conversation."""
 
 import asyncio
 import logging
@@ -10,24 +10,24 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class PlayAudio:
-    """Play this audio after anything already queued. Raw PCM16 at the provider's output sample rate."""
+    """Play this audio after all audio already in the queue. The data is raw PCM16 at the output sample rate."""
 
     data: bytes
 
 
 @dataclass(frozen=True)
 class StopPlayback:
-    """The user barged in: stop playing now and drop anything queued."""
+    """The user interrupted the agent. Stop playback now and discard all audio in the queue."""
 
 
 @dataclass(frozen=True)
 class ReplyFinished:
-    """The current reply's audio has all been sent."""
+    """The pipeline sent all the audio of the current reply."""
 
 
 @dataclass(frozen=True)
 class StreamClosed:
-    """The session was lost for good; the pipeline is stopping."""
+    """The pipeline lost its session permanently and will stop."""
 
     reason: str
 
@@ -36,13 +36,14 @@ Output = PlayAudio | StopPlayback | ReplyFinished | StreamClosed
 
 
 class OutputChannel:
-    """Delivers output events to the client from its own task, and models when each audio chunk plays.
+    """Delivers output events to the client from its own task, and calculates when each audio chunk plays.
 
-    The client is assumed to play chunks back to back in real time, starting
-    each one as soon as it arrives if it had run dry. ``on_played(tag, start,
-    end)`` hears when each chunk plays, as times on ``clock``. Delivery runs in
-    :meth:`run`, separate from whoever queues events, so a callback that blocks
-    on playback never delays them; a callback that raises is logged and skipped.
+    The channel assumes that the client plays chunks one after the other in real
+    time. If the client has no audio left, it starts a chunk immediately when the
+    chunk arrives. ``on_played(tag, start, end)`` receives the start and end time
+    of each chunk, measured on ``clock``. Delivery occurs in :meth:`run`, apart
+    from the code that adds events. Thus a callback that blocks during playback
+    never delays that code. If a callback raises, the channel logs the error and continues.
     """
 
     def __init__(
@@ -61,34 +62,34 @@ class OutputChannel:
         self._playing_until = 0.0
 
     def play(self, data: bytes, tag: object = None) -> None:
-        """Queue audio; ``tag`` is handed back to ``on_played``."""
+        """Queue audio. The channel sends ``tag`` to ``on_played``."""
         self._queue.put_nowait((PlayAudio(data), tag))
 
     def reply_finished(self) -> None:
-        """Queue a ``ReplyFinished`` after the audio already queued."""
+        """Queue a ``ReplyFinished`` after the audio that is already in the queue."""
         self._queue.put_nowait((ReplyFinished(), None))
 
     def playing(self, now: float) -> bool:
-        """Whether the client is still playing audio already handed to it."""
+        """Whether the client still plays audio that the channel sent to it."""
         return now < self._playing_until
 
     def has_queued_audio(self) -> bool:
-        """Whether anything is waiting to be handed to the client."""
+        """Whether events wait in the queue for delivery to the client."""
         return not self._queue.empty()
 
     def stop(self, now: float) -> None:
-        """Barge-in: drop everything queued and tell the client to stop playing."""
+        """Handle a barge-in: discard the queue and tell the client to stop playback."""
         _drain(self._queue)
         self._playing_until = now
         self._queue.put_nowait((StopPlayback(), None))
 
     async def close(self, reason: str) -> None:
-        """Drop everything queued and deliver ``StreamClosed`` straight away."""
+        """Discard the queue and deliver ``StreamClosed`` immediately."""
         _drain(self._queue)
         await self._deliver(StreamClosed(reason=reason))
 
     async def run(self) -> None:
-        """Hand queued events to the client, in order, forever."""
+        """Send the events in the queue to the client in order. This never returns."""
         while True:
             event, tag = await self._queue.get()
             if isinstance(event, PlayAudio):

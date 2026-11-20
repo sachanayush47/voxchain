@@ -1,4 +1,4 @@
-"""ProviderSession: one event stream across reconnects, local events merged in, replaced sockets silenced."""
+"""ProviderSession: one event stream across reconnects, with local events merged in and replaced sockets silent."""
 
 import asyncio
 
@@ -62,7 +62,7 @@ async def test_nothing_from_a_replaced_socket_gets_through(plain_server, settle)
     await session.connect()
     events = []
     reader = asyncio.create_task(_collect(session, events))
-    opened[0].push(say="stale")  # Buffered on the old socket
+    opened[0].push(say="stale")  # The old socket buffered this message
     await session.replace()
     await settle()
     opened[1].push(say="fresh")

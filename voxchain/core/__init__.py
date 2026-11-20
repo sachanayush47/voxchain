@@ -1,4 +1,4 @@
-"""The cascaded pipeline (STT, a LangGraph agent, TTS) and the pieces it is built from."""
+"""The cascaded pipeline (STT, a LangGraph agent, TTS) and its parts."""
 
 from voxchain.core.agent import stream_agent_text
 from voxchain.core.pipeline import VoxchainPipeline
