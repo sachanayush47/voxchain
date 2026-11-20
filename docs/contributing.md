@@ -10,6 +10,8 @@ uv run ruff format .        # Format
 uv run pre-commit install   # Do this once for each clone: lint and format at each commit
 ```
 
+The `examples/` folder has scripts that use your microphone and speakers.
+
 To build these docs locally, run `uv sync --extra docs && uv run mkdocs serve`. The command `uv run mkdocs build --strict` must pass with no warnings.
 
 The contributor conventions (coding standards, design principles, tests and language) are in [`AGENTS.md`](https://github.com/sachanayush47/voxchain/blob/master/AGENTS.md). All prose follows ASD-STE100 Simplified Technical English.

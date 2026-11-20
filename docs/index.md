@@ -60,7 +60,7 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-[`main.py`](https://github.com/sachanayush47/voxchain/blob/master/main.py) is a complete version that you can run. It uses `sounddevice` for the microphone and the speakers. Set `VOXCHAIN_PROVIDER=openai` to use OpenAI STT and TTS. Set `VOXCHAIN_PROVIDER=openai-realtime` to use speech-to-speech.
+The [`examples/`](https://github.com/sachanayush47/voxchain/tree/master/examples) folder has complete versions that you can run, with your microphone and speakers. There is one example for each pipeline and provider, and STT-only and TTS-only examples. For example, run `uv run examples/sarvam.py` or `uv run examples/realtime_openai.py`.
 
 ## What your callback receives
 

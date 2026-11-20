@@ -68,7 +68,7 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-[`main.py`](https://github.com/sachanayush47/voxchain/blob/master/main.py) is a complete version that you can run. It uses `sounddevice` for the microphone and the speakers. Set `VOXCHAIN_PROVIDER=openai` to use OpenAI STT and TTS. Set `VOXCHAIN_PROVIDER=openai-realtime` to use speech-to-speech.
+The [`examples/`](https://github.com/sachanayush47/voxchain/tree/master/examples) folder has complete versions that you can run, with your microphone and speakers. There is one example for each pipeline and provider, and STT-only and TTS-only examples. For example, run `uv run examples/sarvam.py` or `uv run examples/realtime_openai.py`.
 
 ### What your callback receives
 
@@ -107,7 +107,7 @@ Each provider takes keyword arguments. The signature is the full reference. Thes
 - `voice` (OpenAI recommends `"marin"` or `"cedar"`), `instructions` (tone and pace), `speed`.
 - A realtime model has no "speak this text" call. Thus the provider tells the model to read the text word for word. With `verify_transcript=True` (the default), the provider logs a paraphrase as a warning.
 
-All providers reconnect automatically when they lose their connection (5 attempts). Your callback receives `StreamClosed` only if all attempts fail.
+All providers reconnect automatically when they lose their connection (5 attempts). Your callback receives `StreamClosed` only if all attempts fail. If the vendor rejects the session for a cause that a reconnect cannot fix (a bad API key, no credits, a bad parameter), the provider stops immediately and does not try again.
 
 ## How the cascaded pipeline works
 
