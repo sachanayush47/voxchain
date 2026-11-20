@@ -22,7 +22,8 @@ pip install voxchain
 |---|---|---|
 | `vad` | `onnxruntime`, `huggingface-hub`, `numpy` | [`OpenAISTTProvider`][voxchain.stt.openai.OpenAISTTProvider], which runs Silero voice detection locally |
 | `smart-turn` | `onnxruntime`, `transformers`, `huggingface-hub`, `numpy` | The [end-of-turn check](guides/cascaded.md#end-of-turn-check) ([`PipecatSmartTurnDetector`][voxchain.turn.smart_turn.PipecatSmartTurnDetector]) |
-| `all` | both | all features |
+| `noise` | `pyrnnoise` | The [noise filter](guides/cascaded.md#background-noise) ([`RNNoiseFilter`][voxchain.filters.RNNoiseFilter]) |
+| `all` | all of the above | all features |
 
 You must have Python 3.13 or later.
 
@@ -60,7 +61,7 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-The [`examples/`](https://github.com/sachanayush47/voxchain/tree/master/examples) folder has complete versions that you can run, with your microphone and speakers. There is one example for each pipeline and provider, and STT-only and TTS-only examples. For example, run `uv run examples/sarvam.py` or `uv run examples/realtime_openai.py`.
+The [`examples/`](https://github.com/sachanayush47/voxchain/tree/master/examples) folder has complete versions that you can run, with your microphone and speakers. There is one example for each pipeline and provider, and STT-only and TTS-only examples. For example, run `uv run -m examples.sarvam` or `uv run -m examples.realtime_openai`.
 
 ## What your callback receives
 

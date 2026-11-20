@@ -66,3 +66,11 @@ The settings that people usually change on [`OpenAIRealtimeProvider`][voxchain.r
 - `truncation`: for example, `0.8` keeps 80% of the context when OpenAI trims it.
 
 `PipecatSmartTurnDetector` does not apply to this pipeline.
+
+## Background noise
+
+The OpenAI server decides barge-in for this pipeline, from voice activity. Thus the word-based barge-in of the [cascaded pipeline](cascaded.md#barge-in) does not apply. These settings help against noise:
+
+- `noise_reduction="near_field"` (headphones or a close microphone) or `"far_field"` (a laptop microphone).
+- `eagerness="low"` with `semantic_vad`, so that the model waits longer before it decides that the user spoke.
+- `audio_filter=RNNoiseFilter(sample_rate=16000)` on `RealtimePipeline` removes steady noise before OpenAI hears it. It needs `pip install "voxchain[noise]"`.

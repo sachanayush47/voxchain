@@ -1,6 +1,6 @@
 """Type text and hear it, with TTS only. An empty line stops the example.
 
-Run: uv run examples/speak.py --provider sarvam   (or --provider openai)
+Run: uv run -m examples.speak --provider sarvam   (or --provider openai)
 """
 
 import argparse
@@ -8,8 +8,7 @@ import asyncio
 import logging
 import os
 
-from common import Speaker, require, setup
-
+from examples.common import Speaker, require, setup
 from voxchain import OpenAITTSProvider, PlayAudio, SarvamTTSProvider
 from voxchain.session import SessionClosed
 from voxchain.tts import AudioChunk, Flushed

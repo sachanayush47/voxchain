@@ -23,3 +23,5 @@ The pieces that each provider composes.
 ## Audio
 
 ::: voxchain.audio
+
+::: voxchain.filters

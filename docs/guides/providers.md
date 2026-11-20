@@ -18,7 +18,7 @@ Uses the Sarvam streaming models `saaras` and `saarika`. The Sarvam voice activi
 
 - `model` (`"saaras:v3"`), `mode` (for example `"transcribe"` or `"translate"`), `language_code` (`"unknown"` detects the language automatically).
 - `sample_rate`: 8000 or 16000.
-- `extra_params` sends all other Sarvam parameters without change. For example, `{"interrupt_min_speech_frames": 4}` makes barge-in less sensitive.
+- `extra_params` sends all other Sarvam parameters without change. For example, `{"interrupt_min_speech_frames": 4}` makes the Sarvam voice detection less sensitive, and `start_speech_volume_threshold` (dB) makes Sarvam ignore quiet audio.
 - `await stt.flush()` finalizes the buffered audio immediately. It does not wait for silence. It needs `flush_signal=True`.
 
 ## SarvamTTSProvider
@@ -36,7 +36,9 @@ Uses OpenAI realtime transcription (`gpt-live-transcribe`). It needs the `vad` e
 
 - The current OpenAI transcription models have no server-side turn detection. Thus a local Silero VAD decides when speech starts and stops. The provider streams only speech, so OpenAI does not bill you for silence.
 - `languages`, `keywords` (terms to recognize), `prompt`.
-- `vad_threshold`, `vad_start_ms` and `vad_stop_ms` tune turn detection. Increase `vad_start_ms` if coughs cause a barge-in.
+- `vad_threshold` (default 0.7), `vad_start_ms` and `vad_stop_ms` tune turn detection. Increase `vad_start_ms` if coughs cause a barge-in.
+- `vad_min_volume_db` (default -50 dBFS) ignores audio quieter than this level, for example a TV or music in the room. Set `None` to turn it off.
+- `noise_reduction` (`"near_field"` or `"far_field"`) makes OpenAI remove noise before it transcribes.
 - Transcripts always arrive in the order of speech.
 
 ## OpenAITTSProvider

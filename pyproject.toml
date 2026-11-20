@@ -38,8 +38,11 @@ smart-turn = [
     "onnxruntime>=1.30.0",
     "transformers>=5.18.0",
 ]
+noise = [
+    "pyrnnoise>=0.4.5",
+]
 all = [
-    "voxchain[vad,smart-turn]",
+    "voxchain[vad,smart-turn,noise]",
 ]
 
 [tool.setuptools.packages.find]
@@ -53,7 +56,7 @@ dev = [
     "pytest-asyncio>=1.2.0",
     "sounddevice>=0.5.5",
     "python-dotenv>=1.2.2",
-    "voxchain[vad,smart-turn]",
+    "voxchain[vad,smart-turn,noise]",
     "ruff>=0.17.6",
 ]
 

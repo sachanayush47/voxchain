@@ -1,13 +1,12 @@
 """Talk to one OpenAI Realtime speech-to-speech model that can call a LangChain tool.
 
-Run: uv run examples/realtime_openai.py   (needs OPENAI_API_KEY)
+Run: uv run -m examples.realtime_openai [--denoise]   (needs OPENAI_API_KEY)
 """
 
 import asyncio
 import os
 
-from common import MIC_RATE, Speaker, get_current_time, microphone, require, setup
-
+from examples.common import MIC_RATE, Speaker, get_current_time, microphone, noise_filter, options, require, setup
 from voxchain import OpenAIRealtimeProvider, RealtimePipeline
 
 INSTRUCTIONS = """# Role and Objective
@@ -27,6 +26,7 @@ async def show_transcript(role: str, text: str) -> None:
 
 async def main() -> None:
     """Connect the providers and talk until Ctrl+C."""
+    args = options(__doc__.splitlines()[0])
     setup()
     require("OPENAI_API_KEY")
     provider = OpenAIRealtimeProvider(
@@ -42,6 +42,7 @@ async def main() -> None:
             tools=[get_current_time],
             input_sample_rate=MIC_RATE,
             on_transcript=show_transcript,
+            audio_filter=noise_filter(args.denoise),
         )
         print("Speak into your microphone. Press Ctrl+C to stop.")
         await pipeline.run(microphone())

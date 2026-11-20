@@ -31,6 +31,10 @@ class OpenAISTTProvider(STTProvider):
     streams only speech to OpenAI, so OpenAI never receives or bills silence. The
     provider commits each segment, so that OpenAI finalizes its transcript. The
     provider yields transcripts in speech order, even if OpenAI finishes them out of order.
+
+    The VAD ignores audio quieter than ``vad_min_volume_db`` (dBFS), for example
+    a TV or music in the room. ``noise_reduction`` (``"near_field"`` or
+    ``"far_field"``) makes OpenAI remove noise before it transcribes.
     """
 
     def __init__(
@@ -43,11 +47,13 @@ class OpenAISTTProvider(STTProvider):
         prompt: str | None = None,
         delay: str | None = None,
         sample_rate: int = 16000,
-        vad_threshold: float = 0.5,
-        vad_start_ms: int = 200,
+        vad_threshold: float = 0.7,
+        vad_min_volume_db: float | None = -50.0,
+        vad_start_ms: int = 100,
         vad_stop_ms: int = 500,
         vad_prefix_ms: int = 300,
         include_partials: bool = False,
+        noise_reduction: str | None = None,
         vad: VoiceActivityModel | None = None,
         connect: Callable = websockets.connect,
     ) -> None:
@@ -64,6 +70,7 @@ class OpenAISTTProvider(STTProvider):
         self.delay = delay
         self.sample_rate = sample_rate
         self.include_partials = include_partials
+        self.noise_reduction = noise_reduction
         self._connect = connect
 
         if vad is None:
@@ -71,7 +78,12 @@ class OpenAISTTProvider(STTProvider):
 
             vad = SileroVAD(sample_rate)
         self.gate = VoiceGate(
-            vad, threshold=vad_threshold, start_ms=vad_start_ms, stop_ms=vad_stop_ms, prefix_ms=vad_prefix_ms
+            vad,
+            threshold=vad_threshold,
+            start_ms=vad_start_ms,
+            stop_ms=vad_stop_ms,
+            prefix_ms=vad_prefix_ms,
+            min_volume_db=vad_min_volume_db,
         )
         self.session = ProviderSession(name="OpenAI STT", open=self._open, handle=self.handle_event)
         self._resampler = PCM16Resampler(sample_rate, SAMPLE_RATE)
@@ -92,6 +104,8 @@ class OpenAISTTProvider(STTProvider):
             "transcription": compact(transcription),
             "turn_detection": None,
         }
+        if self.noise_reduction:
+            audio_input["noise_reduction"] = {"type": self.noise_reduction}
         return {"type": "transcription", "audio": {"input": audio_input}}
 
     async def connect(self) -> None:

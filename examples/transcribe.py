@@ -1,6 +1,6 @@
 """Print live transcripts and voice activity from the microphone, with STT only.
 
-Run: uv run examples/transcribe.py --provider sarvam   (or --provider openai)
+Run: uv run -m examples.transcribe --provider sarvam   (or --provider openai)
 """
 
 import argparse
@@ -8,8 +8,7 @@ import asyncio
 import logging
 import os
 
-from common import MIC_RATE, microphone, require, setup
-
+from examples.common import MIC_RATE, microphone, require, setup
 from voxchain import OpenAISTTProvider, SarvamSTTProvider
 from voxchain.session import SessionClosed
 from voxchain.stt import FinalTranscript, PartialTranscript, SpeechStarted, SpeechStopped

@@ -30,7 +30,8 @@ pip install voxchain
 |---|---|---|
 | `vad` | `onnxruntime`, `huggingface-hub`, `numpy` | `OpenAISTTProvider`, which runs Silero voice detection locally |
 | `smart-turn` | `onnxruntime`, `transformers`, `huggingface-hub`, `numpy` | [End-of-turn check](#end-of-turn-check) (`PipecatSmartTurnDetector`) |
-| `all` | both | all features |
+| `noise` | `pyrnnoise` | [Noise filter](#background-noise) (`RNNoiseFilter`) |
+| `all` | all of the above | all features |
 
 You must have Python 3.13 or later.
 
@@ -68,7 +69,7 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-The [`examples/`](https://github.com/sachanayush47/voxchain/tree/master/examples) folder has complete versions that you can run, with your microphone and speakers. There is one example for each pipeline and provider, and STT-only and TTS-only examples. For example, run `uv run examples/sarvam.py` or `uv run examples/realtime_openai.py`.
+The [`examples/`](https://github.com/sachanayush47/voxchain/tree/master/examples) folder has complete versions that you can run, with your microphone and speakers. There is one example for each pipeline and provider, and STT-only and TTS-only examples. For example, run `uv run -m examples.sarvam` or `uv run -m examples.realtime_openai`.
 
 ### What your callback receives
 
@@ -100,7 +101,9 @@ Each provider takes keyword arguments. The signature is the full reference. Thes
 **`OpenAISTTProvider`** uses OpenAI realtime transcription (`gpt-live-transcribe`). It needs the `vad` extra.
 - The current OpenAI transcription models have no server-side turn detection. Thus a local Silero VAD decides when speech starts and stops. The provider streams only speech, so OpenAI does not bill you for silence.
 - `languages`, `keywords` (terms to recognize), `prompt`.
-- `vad_threshold`, `vad_start_ms` and `vad_stop_ms` tune turn detection. Increase `vad_start_ms` if coughs cause a barge-in.
+- `vad_threshold` (default 0.7), `vad_start_ms` and `vad_stop_ms` tune turn detection. Increase `vad_start_ms` if coughs cause a barge-in.
+- `vad_min_volume_db` (default -50 dBFS) ignores quiet audio, for example a TV in the room. Set `None` to turn it off.
+- `noise_reduction` (`"near_field"` or `"far_field"`) makes OpenAI remove noise before it transcribes.
 - Transcripts always arrive in the order of speech.
 
 **`OpenAITTSProvider`** reads text aloud with `gpt-realtime-2.1-mini`. OpenAI names this model as the replacement for its retired TTS models (`tts-1` and `gpt-4o-mini-tts` will shut down on 2027-01-06).
@@ -119,9 +122,31 @@ audio in ──▶ STTProvider ──▶ VoxchainPipeline ──▶ LangGraph ag
 
 1. Audio goes to the STT provider and to the optional end-of-turn detector.
 2. A final transcript starts an agent turn. The reply streams to TTS **sentence by sentence**, so speech starts before the agent completes the reply. The pipeline speaks only the text of the assistant (never tool output) and removes markdown from it. Replies run one at a time, in order.
-3. **Barge-in:** if the user starts to speak during a reply, the pipeline cancels the reply. TTS discards its pending work, and your callback receives `StopPlayback`. The user can interrupt less than `resume_window` seconds (default 2) after they first hear the reply. In that case, the end-of-turn decision was probably too early. The pipeline then merges their previous turn with what they say next ("I want a ticket to" + "Bangkok"). Later barge-ins ("stop", "ok thanks") discard the previous turn. Set `interrupt=False` to let replies complete.
+3. **Barge-in:** see below.
 
-`VoxchainPipeline(stt, tts, agent, callback, *, thread_id="default", interrupt=True, resume_window=2.0, end_of_turn=None, end_of_turn_timeout=2.0)`. `thread_id` is the key for the checkpointed memory of the agent. Use one `thread_id` for each conversation.
+`thread_id` is the key for the checkpointed memory of the agent. Use one `thread_id` for each conversation. `greeting` is a sentence that the agent speaks first, for example `greeting="Hi, this is the clinic. How can I help?"`.
+
+### Barge-in
+
+The pipeline decides from the **words** of the user, not from voice activity, whether the user interrupts the agent. Thus noise, music and "uh-huh" do not stop the agent:
+
+- While the user hears the agent, the user interrupts only with `interrupt_min_words` words (default 3) or a stop word, for example "stop", "wait" or "no". The pipeline discards shorter transcripts.
+- The pipeline adds up short transcripts that arrive within 2 seconds, because STT often splits one sentence.
+- Speech that starts before the user hears the reply always interrupts. If the user interrupts less than `resume_window` seconds (default 2) after they first hear a reply, the end-of-turn decision was probably too early. The pipeline then merges their previous turn with what they say next ("I want a ticket to" + "Bangkok").
+- The user cannot interrupt while a tool call runs, so a booking does not happen two times. The pipeline answers their words after the tool call.
+- The user cannot interrupt the `greeting`. The pipeline ignores speech while the greeting plays.
+- After a barge-in, the agent's memory keeps only the part of the reply that the user heard.
+- If a barge-in gives no transcript (for example, a cough), the agent asks the user to say it again after `recovery_delay` seconds (default 1.5). Set `recovery_prompt=None` to turn this off.
+
+Set `interrupt_min_words=0` to interrupt on voice activity, or `interrupt=False` to let replies complete. A partial transcript (for example from `OpenAISTTProvider(include_partials=True)`) interrupts as soon as it has enough words. Sarvam STT sends only final transcripts, so a barge-in comes after a short pause in the speech of the user.
+
+### Background noise
+
+Words decide barge-in, but noise can still cause wrong transcripts. These settings help:
+
+- `audio_filter=RNNoiseFilter()` (`from voxchain.filters import RNNoiseFilter`) removes steady background noise from the microphone audio before STT. It needs `pip install "voxchain[noise]"`, and it works with both pipelines.
+- `OpenAISTTProvider` ignores audio quieter than `vad_min_volume_db`. For Sarvam STT, set `start_speech_volume_threshold` (dB) in `extra_params`.
+- Use headphones, or audio capture with echo cancellation. If you do not, the agent can hear itself.
 
 ### End-of-turn check
 
@@ -170,7 +195,7 @@ What the pipeline does:
 
 Common settings: `model` (`"gpt-realtime-2.1"` or the cheaper `-mini`), `voice`, `turn_detection` (`"semantic_vad"` / `"server_vad"`), `interrupt_response`, `noise_reduction` (`"near_field"` / `"far_field"`), `reasoning_effort` (OpenAI recommends `"low"`), and `truncation` (for example, `0.8` keeps 80% of the context when OpenAI trims it). `PipecatSmartTurnDetector` does not apply to this pipeline.
 
-With each pipeline, use headphones or audio capture with echo cancellation. If you do not, the agent can hear itself and interrupt its own reply.
+With each pipeline, use headphones or audio capture with echo cancellation. If you do not, the agent can hear itself and interrupt its own reply. `RealtimePipeline` also takes an `audio_filter`. The OpenAI server decides barge-in for this pipeline, so `noise_reduction` and a lower `eagerness` (for example `"low"`) are the other settings against noise.
 
 ## Logs
 

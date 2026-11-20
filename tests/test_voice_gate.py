@@ -58,3 +58,30 @@ def test_audio_split_across_pushes_is_scored_in_whole_windows():
 def test_an_unusable_threshold_is_rejected():
     with pytest.raises(ValueError):
         _gate([], threshold=0.1)
+
+
+def _tone(amplitude, windows):
+    """Windows of a square wave at ``amplitude`` (PCM16), which the loudness gate can measure."""
+    half = ScriptedVAD.window_bytes // 4
+    window = (amplitude.to_bytes(2, "little", signed=True) * half) + (
+        (-amplitude).to_bytes(2, "little", signed=True) * half
+    )
+    return window * windows
+
+
+def test_the_loudness_gate_ignores_quiet_audio_that_the_vad_scores_as_speech():
+    gate = _gate([0.9] * 20, min_volume_db=-40.0)
+    assert gate.push(_tone(100, 20)) == []  # Approximately -50 dBFS, like music in another room
+
+
+def test_the_loudness_gate_lets_loud_speech_through():
+    gate = _gate([0.9] * 20, min_volume_db=-40.0)
+    kinds = [type(s) for s in gate.push(_tone(8000, 20))]  # Approximately -12 dBFS, a voice near the microphone
+    assert SegmentStarted in kinds
+
+
+def test_a_short_loud_word_after_silence_opens_a_segment_as_fast_as_without_the_gate():
+    with_gate = _gate([0.0] * 30 + [0.9] * 3, min_volume_db=-40.0)
+    without_gate = _gate([0.0] * 30 + [0.9] * 3)
+    audio = b"\0" * ScriptedVAD.window_bytes * 30 + _tone(8000, 3)  # A "stop" of approximately 100 ms
+    assert [type(s) for s in with_gate.push(audio)] == [type(s) for s in without_gate.push(audio)]

@@ -1,5 +1,6 @@
 """Shared parts of the examples: the environment, logs, the microphone, the speaker and a small agent."""
 
+import argparse
 import asyncio
 import logging
 import os
@@ -12,8 +13,10 @@ from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain_core.tools import tool
 from langchain_groq import ChatGroq
+from langgraph.checkpoint.memory import InMemorySaver
 
 from voxchain import Output, PlayAudio, StopPlayback
+from voxchain.filters import AudioFilter
 
 MIC_RATE = 16000
 MIC_CHUNK = MIC_RATE // 10  # 100 ms
@@ -23,7 +26,25 @@ SYSTEM_PROMPT = (
     "so answer in a few short, plain sentences. Never use markdown, lists, tables or emojis."
 )
 
+GREETING = "Hi! I am your voice assistant. How can I help you today?"
+
 logger = logging.getLogger("examples")
+
+
+def options(description: str) -> argparse.Namespace:
+    """Read the command line options that all conversation examples share."""
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument("--denoise", action="store_true", help="Remove background noise with RNNoise before STT")
+    return parser.parse_args()
+
+
+def noise_filter(enabled: bool) -> AudioFilter | None:
+    """Return an RNNoise filter for the microphone audio if ``enabled``, or ``None``."""
+    if not enabled:
+        return None
+    from voxchain.filters import RNNoiseFilter
+
+    return RNNoiseFilter(sample_rate=MIC_RATE)
 
 
 def setup(level: int = logging.DEBUG) -> None:
@@ -46,9 +67,14 @@ def get_current_time() -> str:
 
 
 def groq_agent(model: str = "openai/gpt-oss-120b"):
-    """Return a LangGraph agent on Groq that can tell the time."""
+    """Return a LangGraph agent on Groq that can tell the time, with a memory of the conversation."""
     require("GROQ_API_KEY")
-    return create_agent(model=ChatGroq(model=model), tools=[get_current_time], system_prompt=SYSTEM_PROMPT)
+    return create_agent(
+        model=ChatGroq(model=model),
+        tools=[get_current_time],
+        system_prompt=SYSTEM_PROMPT,
+        checkpointer=InMemorySaver(),
+    )
 
 
 async def microphone() -> AsyncIterator[bytes]:

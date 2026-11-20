@@ -25,12 +25,14 @@ Each example is a script that you can run. Each one uses your microphone and spe
 | `transcribe.py` | STT only: it prints voice activity and transcripts. Use `--provider sarvam` or `--provider openai`. | The key of the provider |
 | `speak.py` | TTS only: type a line of text and hear it. Use `--provider sarvam` or `--provider openai`. | The key of the provider |
 
-Run an example from the repo root:
+Run an example as a module from the repo root. Do not run the file directly (`uv run examples/openai.py`): then Python finds `examples/openai.py` before the real `openai` package.
 
 ```bash
-uv run examples/sarvam.py
-uv run examples/transcribe.py --provider openai
+uv run -m examples.sarvam
+uv run -m examples.transcribe --provider openai
 ```
+
+Add `--denoise` to `sarvam.py` or `openai.py` to remove background noise with RNNoise before STT.
 
 Ask "What time is it?" to see the agent call its tool. Speak while the agent speaks to see barge-in. Press Ctrl+C to stop.
 

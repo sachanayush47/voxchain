@@ -8,6 +8,8 @@
 
 ## Building blocks
 
+::: voxchain.core.interruptions
+
 ::: voxchain.core.replies
 
 ::: voxchain.core.turn_gate

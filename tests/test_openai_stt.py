@@ -22,6 +22,7 @@ class ScriptedVAD:
 
 
 def _stt(server, probabilities=(), **kwargs):
+    kwargs.setdefault("vad_min_volume_db", None)  # The tests send silent bytes, and the scripted VAD decides
     return OpenAISTTProvider(api_key="key", vad=ScriptedVAD(probabilities), connect=server.connect, **kwargs)
 
 
@@ -109,3 +110,19 @@ def test_settings_openai_would_reject_fail_at_construction(openai_server):
 async def _collect(provider, events):
     async for event in provider.receive_events():
         events.append(event)
+
+
+async def test_quiet_audio_is_not_speech_even_if_the_vad_scores_it_high(openai_server):
+    stt = _stt(openai_server, [0.9] * 30, vad_min_volume_db=-50.0)
+    await stt.connect()
+    events = []
+    reader = asyncio.create_task(_collect(stt, events))
+    await stt.send_audio(b"\x05\x00" * (WINDOW // 2) * 30)  # Approximately -76 dBFS, like a far-away TV
+    await asyncio.sleep(0.01)
+    assert events == []
+    reader.cancel()
+
+
+def test_noise_reduction_goes_into_the_session_config(openai_server):
+    config = _stt(openai_server, noise_reduction="near_field").session_config()
+    assert config["audio"]["input"]["noise_reduction"] == {"type": "near_field"}
