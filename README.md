@@ -191,7 +191,7 @@ Put the wire vocabulary of the vendor (URLs, message types as `StrEnum`s, handsh
 
 ## Documentation
 
-The API reference comes from the docstrings: **[sachanayush47.github.io/voxchain](https://sachanayush47.github.io/voxchain/)**. To build it locally, run `uv sync --extra docs && uv run mkdocs serve`.
+The docs site has guides for each pipeline and provider, the architecture, and an API reference from the docstrings: **[sachanayush47.github.io/voxchain](https://sachanayush47.github.io/voxchain/)**. To build it locally, run `uv sync --extra docs && uv run mkdocs serve`.
 
 ## Development
 
@@ -203,7 +203,7 @@ uv run ruff format .        # Format
 uv run pre-commit install   # Do this once for each clone: lint and format at each commit
 ```
 
-To release, increase `version` in `pyproject.toml`. Then publish a GitHub release with the tag `v<version>`. The release workflow tests the package, builds it and uploads it to PyPI through trusted publishing.
+To release, increase `version` in `pyproject.toml` and `__version__` in `voxchain/__init__.py`. Then publish a GitHub release with the tag `v<version>`. The release workflow tests the package, builds it and uploads it to PyPI through trusted publishing.
 
 The contributor conventions (coding standards, design principles, tests) are in [`AGENTS.md`](https://github.com/sachanayush47/voxchain/blob/master/AGENTS.md).
 

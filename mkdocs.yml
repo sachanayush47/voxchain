@@ -25,7 +25,12 @@ theme:
 
 nav:
   - Home: index.md
+  - Guides:
+      - Cascaded pipeline: guides/cascaded.md
+      - Speech-to-speech: guides/speech-to-speech.md
+      - Providers: guides/providers.md
   - Architecture: architecture.md
+  - Contributing: contributing.md
   - API Reference:
       - VoxchainPipeline: reference/pipeline.md
       - RealtimePipeline: reference/realtime.md
