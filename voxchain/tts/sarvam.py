@@ -8,8 +8,16 @@ from collections.abc import AsyncIterator, Callable
 import websockets
 
 from voxchain.protocols import compact
-from voxchain.protocols.sarvam import TTS_URL, TTSClientMessage, TTSEventType, TTSServerMessage, open_socket
-from voxchain.session import ProviderSession
+from voxchain.protocols.sarvam import (
+    TTS_URL,
+    TTSClientMessage,
+    TTSEventType,
+    TTSServerMessage,
+    open_socket,
+    read_error,
+    rejection,
+)
+from voxchain.session import ProviderSession, SessionRejected
 from voxchain.tts.base import TTSProvider
 from voxchain.tts.events import AudioChunk, Flushed, TTSEvent
 
@@ -63,7 +71,9 @@ class SarvamTTSProvider(TTSProvider):
         }
         self._connect = connect
 
-        self.session = ProviderSession(name="Sarvam TTS", open=self._open, handle=self.handle_message)
+        self.session = ProviderSession(
+            name="Sarvam TTS", open=self._open, handle=self.handle_message, rejection=rejection
+        )
         self._pending_flushes = 0
 
     def config(self) -> dict:
@@ -127,7 +137,10 @@ class SarvamTTSProvider(TTSProvider):
                     self._pending_flushes -= 1
                     return [Flushed()]
             case TTSServerMessage.ERROR:
-                logger.error(f"Sarvam TTS error ({data.get('code')}): {data.get('message')}")
+                fatal, text = read_error(data)
+                if fatal:
+                    raise SessionRejected(text)
+                logger.error(f"Sarvam TTS error: {text}")
             case other:
                 logger.debug(f"Sarvam TTS: Ignored {other!r}")
         return []

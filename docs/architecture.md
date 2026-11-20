@@ -35,7 +35,7 @@ audio in ──▶ RealtimeProvider (hears, reasons, speaks) ──▶ RealtimeP
 ## Shared pieces
 
 - [`ProviderSession`][voxchain.session.ProviderSession] is the plumbing of each websocket provider. The provider gives it `open` and `handle` (and optional hooks) and gets one event stream back. Below it:
-    - [`ReconnectingSession`][voxchain.session.ReconnectingSession] reconnects after a connection loss (5 attempts). Planned replacements, such as a cancel or the 60-minute swap, do not use an attempt.
+    - [`ReconnectingSession`][voxchain.session.ReconnectingSession] reconnects after a connection loss (5 attempts). Planned replacements, such as a cancel or the 60-minute swap, do not use an attempt. A [`SessionRejected`][voxchain.session.SessionRejected] error stops it immediately.
     - [`LiveSocket`][voxchain.session.LiveSocket] holds the current socket. During a reconnect, its sends either discard the data (audio) or wait for the new socket (tool results, text to speak).
 - [`OutputChannel`][voxchain.output.OutputChannel] delivers the client events of both pipelines from their own task. It calculates when each chunk plays and tells the tracker of the pipeline.
 - [`VoiceGate`][voxchain.vad.gate.VoiceGate] changes the probabilities of a local VAD into speech segments. It is for providers whose vendor does not report voice activity.
@@ -44,6 +44,8 @@ audio in ──▶ RealtimeProvider (hears, reasons, speaks) ──▶ RealtimeP
 ## Connection loss and logs
 
 Each provider reconnects automatically. You lose only the audio that is in transit at that time. The provider emits [`SessionClosed`][voxchain.session.SessionClosed] only if the reconnect fails. The pipeline then stops and sends `StreamClosed`.
+
+Some errors cannot change on a reconnect: HTTP 401, 402 or 403 when the provider connects, and the errors that the vendor marks as fatal (for Sarvam: no credits, or a bad parameter). For these errors, the provider does not try again. It emits `SessionClosed` immediately, with the reason of the vendor.
 
 voxchain logs routine activity at `DEBUG`. It logs only real problems at `WARNING` or `ERROR`:
 

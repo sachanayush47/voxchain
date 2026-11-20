@@ -10,7 +10,7 @@ Each provider takes keyword arguments. The signature in the API reference is the
 | [`OpenAITTSProvider`][voxchain.tts.openai.OpenAITTSProvider] | TTS | `gpt-realtime-2.1-mini` |
 | [`OpenAIRealtimeProvider`][voxchain.realtime.openai.OpenAIRealtimeProvider] | Speech-to-speech | `gpt-realtime-2.1` |
 
-All providers reconnect automatically when they lose their connection (5 attempts). Your callback receives `StreamClosed` only if all attempts fail.
+All providers reconnect automatically when they lose their connection (5 attempts). Your callback receives `StreamClosed` only if all attempts fail. If the vendor rejects the session for a cause that a reconnect cannot fix (a bad API key, no credits, a bad parameter), the provider stops immediately and does not try again.
 
 ## SarvamSTTProvider
 

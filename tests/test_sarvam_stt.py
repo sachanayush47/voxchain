@@ -2,6 +2,7 @@
 
 import asyncio
 import base64
+import logging
 import urllib.parse
 
 import pytest
@@ -87,3 +88,22 @@ def test_an_unsupported_sample_rate_is_rejected(plain_server):
 async def _collect(provider, events):
     async for event in provider.receive_events():
         events.append(event)
+
+
+async def test_running_out_of_credits_ends_the_session_without_reconnect_attempts(plain_server):
+    stt = _stt(plain_server)
+    await stt.connect()
+    events = []
+    reader = asyncio.create_task(_collect(stt, events))
+    plain_server.sockets[0].close_with(1003, "Credits exhausted. Add credits in the API Dashboard.")
+    await asyncio.wait_for(reader, 1)
+    assert events == [
+        SessionClosed(reason="Session rejected: Close 1003: Credits exhausted. Add credits in the API Dashboard.")
+    ]
+    assert len(plain_server.sockets) == 1
+
+
+def test_an_error_message_logs_its_text_from_the_message_field(plain_server, caplog):
+    with caplog.at_level(logging.ERROR):
+        assert _stt(plain_server).handle_message({"type": "error", "data": {"message": "Audio too long"}}) == []
+    assert "Audio too long" in caplog.text

@@ -5,6 +5,7 @@ import json
 
 import pytest
 import websockets
+from websockets.frames import Close
 
 import voxchain.session
 
@@ -27,6 +28,9 @@ class FakeSocket:
 
     def drop(self):
         self.incoming.put_nowait(websockets.ConnectionClosedError(None, None))
+
+    def close_with(self, code, reason):
+        self.incoming.put_nowait(websockets.ConnectionClosedError(Close(code, reason), None))
 
     async def send(self, raw):
         if self.closed:
@@ -75,12 +79,15 @@ class FakeServer:
         self.sockets: list[FakeSocket] = []
         self.reject = False
         self.refuse = False
+        self.refuse_with: Exception | None = None  # If set, each connect raises this error
         self.rejections = 0  # The number of handshakes to reject before the server accepts
         self.gate: asyncio.Event | None = None  # If set, each connect waits for this event
 
     async def connect(self, url, additional_headers=None, **kwargs):
         if self.gate is not None:
             await self.gate.wait()
+        if self.refuse_with is not None:
+            raise self.refuse_with
         if self.refuse:
             raise OSError("Network down")
         socket = FakeSocket(self, url, additional_headers or {})

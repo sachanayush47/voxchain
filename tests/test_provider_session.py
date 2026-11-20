@@ -2,7 +2,11 @@
 
 import asyncio
 
-from voxchain.session import ProviderSession, SessionClosed
+import websockets
+from websockets.datastructures import Headers
+from websockets.http11 import Response
+
+from voxchain.session import ProviderSession, SessionClosed, SessionRejected
 
 
 def _session(server, **hooks):
@@ -120,3 +124,43 @@ async def test_losing_the_session_for_good_ends_the_stream_with_session_closed(p
     opened[0].drop()
     await asyncio.wait_for(reader, 1)
     assert isinstance(events[-1], SessionClosed)
+
+
+async def test_an_http_402_on_reconnect_ends_the_stream_at_once(plain_server):
+    session, opened = _session(plain_server)
+    await session.connect()
+    events = []
+    reader = asyncio.create_task(_collect(session, events))
+    plain_server.refuse_with = websockets.InvalidStatus(Response(402, "Payment Required", Headers()))
+    opened[0].drop()
+    await asyncio.wait_for(reader, 1)
+    assert events == [SessionClosed(reason="Session rejected: HTTP 402")]
+    assert len(opened) == 1
+
+
+async def test_a_close_that_the_rejection_hook_flags_ends_the_stream_without_a_reconnect(plain_server):
+    session, opened = _session(plain_server, rejection=lambda e: "Bad parameter" if "4000" in repr(e) else None)
+    await session.connect()
+    events = []
+    reader = asyncio.create_task(_collect(session, events))
+    opened[0].close_with(4000, "Unsupported model")
+    await asyncio.wait_for(reader, 1)
+    assert events == [SessionClosed(reason="Session rejected: Bad parameter")]
+    assert len(opened) == 1
+
+
+async def test_a_handler_that_raises_session_rejected_ends_the_stream(plain_server):
+    def handle(message):
+        raise SessionRejected(message["error"])
+
+    async def open():
+        return await plain_server.connect("wss://example")
+
+    session = ProviderSession(name="test", open=open, handle=handle)
+    await session.connect()
+    events = []
+    reader = asyncio.create_task(_collect(session, events))
+    plain_server.sockets[0].push(error="No credits")
+    await asyncio.wait_for(reader, 1)
+    assert events == [SessionClosed(reason="Session rejected: No credits")]
+    assert len(plain_server.sockets) == 1

@@ -6,8 +6,16 @@ from collections.abc import AsyncIterator, Callable
 
 import websockets
 
-from voxchain.protocols.sarvam import STT_URL, STTClientMessage, STTServerMessage, STTSignal, open_socket
-from voxchain.session import ProviderSession
+from voxchain.protocols.sarvam import (
+    STT_URL,
+    STTClientMessage,
+    STTServerMessage,
+    STTSignal,
+    open_socket,
+    read_error,
+    rejection,
+)
+from voxchain.session import ProviderSession, SessionRejected
 from voxchain.stt.base import STTProvider
 from voxchain.stt.events import FinalTranscript, SpeechStarted, SpeechStopped, STTEvent
 
@@ -48,7 +56,9 @@ class SarvamSTTProvider(STTProvider):
         self.extra_params = extra_params or {}
         self._connect = connect
 
-        self.session = ProviderSession(name="Sarvam STT", open=self._open, handle=self.handle_message)
+        self.session = ProviderSession(
+            name="Sarvam STT", open=self._open, handle=self.handle_message, rejection=rejection
+        )
 
     def query(self) -> dict:
         """The connection parameters. Sarvam's defaults apply to ``None`` values."""
@@ -110,7 +120,10 @@ class SarvamSTTProvider(STTProvider):
                         return [SpeechStopped()]
                 logger.debug(f"Sarvam STT: Ignored signal {data.get('signal_type')!r}")
             case STTServerMessage.ERROR:
-                logger.error(f"Sarvam STT error ({data.get('code')}): {data.get('error')}")
+                fatal, text = read_error(data)
+                if fatal:
+                    raise SessionRejected(text)
+                logger.error(f"Sarvam STT error: {text}")
             case other:
                 logger.debug(f"Sarvam STT: Ignored {other!r}")
         return []

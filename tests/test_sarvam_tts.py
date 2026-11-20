@@ -3,6 +3,7 @@
 import asyncio
 import base64
 
+from voxchain.session import SessionClosed
 from voxchain.tts import AudioChunk, Flushed, SarvamTTSProvider
 
 
@@ -90,5 +91,32 @@ async def test_cancels_are_planned_replacements_that_never_count_toward_giving_u
         await settle()
     assert len(plain_server.sockets) == 8
     assert events == []  # Specifically, the provider sends no SessionClosed
+    await tts.disconnect()
+    await reader
+
+
+async def test_a_credits_error_ends_the_session_without_reconnect_attempts(plain_server):
+    tts = _tts(plain_server)
+    await tts.connect()
+    events = []
+    reader = asyncio.create_task(_collect(tts, events))
+    error = {"code": 402, "message": "Credits exhausted. Add credits in the API Dashboard."}
+    plain_server.sockets[0].push(type="error", data=error)
+    await asyncio.wait_for(reader, 1)
+    assert events == [
+        SessionClosed(reason="Session rejected: (402) Credits exhausted. Add credits in the API Dashboard.")
+    ]
+    assert len(plain_server.sockets) == 1
+
+
+async def test_an_error_that_a_reconnect_can_fix_keeps_the_session(plain_server, settle):
+    tts = _tts(plain_server)
+    await tts.connect()
+    events = []
+    reader = asyncio.create_task(_collect(tts, events))
+    plain_server.sockets[0].push(type="error", data={"code": 500, "message": "Internal error"})
+    plain_server.sockets[0].push(**_audio(b"\x01\x00"))
+    await settle()
+    assert events == [AudioChunk(b"\x01\x00")]
     await tts.disconnect()
     await reader
