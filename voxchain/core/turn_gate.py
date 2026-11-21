@@ -34,11 +34,13 @@ class EndOfTurnGate:
         detector: EndOfTurnDetector | None,
         timeout: float,
         commit: Callable[[str], None],
+        on_error: Callable[[Exception], None] | None = None,
     ) -> None:
-        """Create the gate."""
+        """Create the gate. ``on_error`` receives each error of the detector."""
         self.detector = detector
         self.timeout = timeout
         self._commit = commit
+        self._on_error = on_error
         self._held = ""
         self._task: asyncio.Task | None = None
 
@@ -94,8 +96,10 @@ class EndOfTurnGate:
         if check and self.detector is not None:
             try:
                 complete = await self.detector.is_end_of_turn(self._held)
-            except Exception:
+            except Exception as error:
                 logger.exception("EndOfTurnGate: Detector failed, the turn counts as complete")
+                if self._on_error is not None:
+                    self._on_error(error)
                 complete = True
         if not complete:
             if check:

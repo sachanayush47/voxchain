@@ -40,8 +40,8 @@ class OutputChannel:
 
     The channel assumes that the client plays chunks one after the other in real
     time. If the client has no audio left, it starts a chunk immediately when the
-    chunk arrives. ``on_played(tag, start, end)`` receives the start and end time
-    of each chunk, measured on ``clock``. Delivery occurs in :meth:`run`, apart
+    chunk arrives. ``on_played(tag, start, end, data)`` receives the start and end time
+    of each chunk, measured on ``clock``, and its audio. Delivery occurs in :meth:`run`, apart
     from the code that adds events. Thus a callback that blocks during playback
     never delays that code. If a callback raises, the channel logs the error and continues.
     """
@@ -52,7 +52,7 @@ class OutputChannel:
         *,
         sample_rate: int,
         clock: Callable[[], float],
-        on_played: Callable[[object, float, float], None] | None = None,
+        on_played: Callable[[object, float, float, bytes], None] | None = None,
     ) -> None:
         self.callback = callback
         self.clock = clock
@@ -96,7 +96,7 @@ class OutputChannel:
                 start = max(self.clock(), self._playing_until)
                 self._playing_until = start + len(event.data) / self._bytes_per_second
                 if self.on_played is not None:
-                    self.on_played(tag, start, self._playing_until)
+                    self.on_played(tag, start, self._playing_until, event.data)
             await self._deliver(event)
 
     async def _deliver(self, event: Output) -> None:

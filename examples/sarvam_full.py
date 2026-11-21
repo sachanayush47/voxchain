@@ -1,10 +1,15 @@
-"""Talk to a Groq agent through Sarvam, with all the voxchain features: audio filters, Smart Turn and barge-in settings.
+"""Talk to a Groq agent through Sarvam, with all the voxchain features: filters, Smart Turn, barge-in and the report.
 
 Run: uv run -m examples.sarvam_full   (needs SARVAM_API_KEY and GROQ_API_KEY. Set HUSH_LIBRARY_PATH to use Hush)
+When the call ends, the example prints the transcript and the latency of each turn. It saves the report and
+the audio in sessions/<time>/ at the repo root.
 """
 
 import asyncio
+import json
 import os
+from datetime import datetime
+from pathlib import Path
 
 from examples.common import GREETING, MIC_RATE, Speaker, groq_agent, microphone, require, setup
 from voxchain import (
@@ -18,6 +23,9 @@ from voxchain import (
     VoxchainPipeline,
 )
 from voxchain.filters import AudioFilter, HushFilter, LoudnessGate, RNNoiseFilter
+from voxchain.report import SessionReport, wav
+
+SESSIONS = Path(__file__).resolve().parent.parent / "sessions"
 
 
 def audio_filters() -> list[AudioFilter]:
@@ -28,6 +36,18 @@ def audio_filters() -> list[AudioFilter]:
         return [gate, HushFilter(library_path=library, sample_rate=MIC_RATE)]
     print("HUSH_LIBRARY_PATH is not set. RNNoise removes steady noise, but not other voices.")
     return [gate, RNNoiseFilter(sample_rate=MIC_RATE)]
+
+
+def save_report(report: SessionReport) -> None:
+    """Print the transcript and the latency of each turn. Save the report and the audio in a new folder."""
+    folder = SESSIONS / datetime.now().strftime("%Y%m%d-%H%M%S")
+    folder.mkdir(parents=True)
+    (folder / "report.json").write_text(json.dumps(report.to_dict(), indent=2))
+    audio = report.audio
+    (folder / "conversation.wav").write_bytes(audio.stereo_wav())  # The user on the left, the agent on the right
+    (folder / "raw.wav").write_bytes(wav(audio.raw, audio.input_sample_rate))
+    (folder / "filtered.wav").write_bytes(wav(audio.filtered, audio.input_sample_rate))
+    print(f"\n{report.transcript()}\n\n{report.waterfall()}\n\nSaved the report and the audio in {folder}")
 
 
 async def main() -> None:
@@ -68,7 +88,10 @@ async def main() -> None:
             recovery_delay=1.5,
         )
         print("Speak into your microphone. Press Ctrl+C to stop.")
-        await pipeline.run(microphone())
+        try:
+            await pipeline.run(microphone())
+        finally:
+            save_report(pipeline.report())
 
 
 if __name__ == "__main__":

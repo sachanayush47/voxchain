@@ -161,6 +161,23 @@ pipeline = VoxchainPipeline(
 
 Use one denoiser (`HushFilter` or `RNNoiseFilter`), and put `LoudnessGate` before it. To write your own filter, implement `AudioFilter`: one method, `process(pcm) -> bytes`. Use headphones, or audio capture with echo cancellation. If you do not, the agent can hear itself.
 
+### Session report
+
+After a call, `pipeline.report()` gives the transcript, a timeline of events, the latency of each turn divided into stages, tool calls with their arguments and results, errors, a summary (barge-ins, talk time, latency percentiles), the usage of each provider, and the audio: the input before and after the filters, and the agent audio that played:
+
+```python
+pipeline = VoxchainPipeline(stt, tts, agent, play)
+try:
+    await pipeline.run(microphone())
+finally:
+    report = pipeline.report()
+    print(report.transcript())
+    print(report.waterfall())  # The latency stages of each turn as text bars
+    Path("call.wav").write_bytes(report.audio.stereo_wav())  # The user on the left, the agent on the right
+```
+
+The report and its parts are dataclasses, so you use typed attributes (`turn.latency.llm`, `turn.heard_text`) and not JSON keys. `report.to_dict()` gives a dict for `json.dumps`. See the [session report guide](https://sachanayush47.github.io/voxchain/guides/session-report/).
+
 ### End-of-turn check
 
 Voice detection ends a turn on silence alone. Thus, if the user pauses in the middle of a sentence ("book it for... um..."), the agent answers too early. [Smart Turn v3](https://github.com/pipecat-ai/smart-turn) is a small local audio model. It uses intonation to decide if the user turn is complete:

@@ -43,6 +43,7 @@ audio in ──▶ RealtimeProvider (hears, reasons, speaks) ──▶ RealtimeP
 - [`OutputChannel`][voxchain.output.OutputChannel] delivers the client events of both pipelines from their own task. It calculates when each chunk plays and tells the tracker of the pipeline.
 - [`VoiceGate`][voxchain.vad.gate.VoiceGate] changes the probabilities of a local VAD into speech segments. It is for providers whose vendor does not report voice activity. Its loudness gate ignores quiet background sound.
 - A [`FilterChain`][voxchain.filters.base.FilterChain] runs the [audio filters](guides/audio-filters.md) of both pipelines one after another, before any provider hears the audio. Each filter implements [`AudioFilter`][voxchain.filters.base.AudioFilter].
+- A [`SessionRecorder`][voxchain.report.recorder.SessionRecorder] collects the [session report](guides/session-report.md) of `VoxchainPipeline`: the turns, the latency stages, the events, the usage and the audio. It does no I/O. The pipeline calls it at each step, with the times of its clock.
 - `voxchain/protocols/` contains the wire vocabulary of each vendor: URLs, message types as `StrEnum`s, and handshakes.
 
 ## Connection loss and logs

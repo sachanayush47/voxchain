@@ -14,6 +14,7 @@ from voxchain.core.text import SentenceSegmenter
 from voxchain.core.turn_gate import EndOfTurnGate
 from voxchain.filters import AudioFilter, FilterChain
 from voxchain.output import Output, OutputChannel
+from voxchain.report import ErrorSource, SessionRecorder, SessionReport, TurnKind
 from voxchain.session import SessionClosed
 from voxchain.stt import FinalTranscript, PartialTranscript, SpeechStarted, SpeechStopped, STTProvider
 from voxchain.tasks import run_until_first_exit
@@ -60,8 +61,11 @@ class VoxchainPipeline:
     An ``end_of_turn`` detector holds transcripts that sound incomplete for a
     maximum of ``end_of_turn_timeout`` seconds. ``audio_filters`` clean the
     input audio one after another before STT (see :mod:`voxchain.filters`).
-    ``thread_id`` is the key for the
-    agent's checkpointed memory. A pipeline runs once.
+    ``thread_id`` is the key for the agent's checkpointed memory. A pipeline runs once.
+
+    :meth:`report` gives the transcript, the events, the latency of each turn, the
+    usage of the session, and its audio: the input before and after the filters,
+    and the agent audio that played.
     """
 
     def __init__(
@@ -100,15 +104,38 @@ class VoxchainPipeline:
         self.recovery_delay = recovery_delay
         self.audio_filter = FilterChain(audio_filters)
         self.clock = clock
+        self.recorder = SessionRecorder(
+            clock=clock,
+            input_sample_rate=stt.sample_rate,
+            agent_sample_rate=tts.sample_rate,
+            thread_id=thread_id,
+            providers={"stt": type(stt).__name__, "tts": type(tts).__name__, "agent": getattr(agent, "name", "")},
+            settings={
+                "greeting": greeting,
+                "interrupt": interrupt,
+                "interrupt_min_words": interrupt_min_words,
+                "resume_window": resume_window,
+                "recovery": recovery_prompt is not None,
+                "recovery_delay": recovery_delay,
+                "end_of_turn": type(end_of_turn).__name__ if end_of_turn else None,
+                "end_of_turn_timeout": end_of_turn_timeout,
+                "audio_filters": [type(audio_filter).__name__ for audio_filter in audio_filters],
+            },
+        )
 
         self.replies = ReplyTracker(resume_window)
         self.output = OutputChannel(
             callback,
             sample_rate=tts.sample_rate,
             clock=clock,
-            on_played=lambda reply, start, _end: self.replies.audio_played(reply, start),
+            on_played=self._on_played,
         )
-        self._gate = EndOfTurnGate(end_of_turn, end_of_turn_timeout, self._start_reply)
+        self._gate = EndOfTurnGate(
+            end_of_turn,
+            end_of_turn_timeout,
+            self._start_reply,
+            on_error=lambda error: self.recorder.error(ErrorSource.END_OF_TURN, error),
+        )
         self._greeting_reply: Reply | None = None
         self._onset_audible = True
         self._awaiting_words = False
@@ -122,6 +149,7 @@ class VoxchainPipeline:
         if self._started:
             raise RuntimeError("A VoxchainPipeline runs once; create a new one")
         self._started = True
+        self.recorder.start()
 
         await self.stt.connect()
         await self.tts.connect()
@@ -145,17 +173,26 @@ class VoxchainPipeline:
             await asyncio.gather(*tasks, *[t for t in [self._memory_sync] if t], return_exceptions=True)
             await self.stt.disconnect()
             await self.tts.disconnect()
+            self.recorder.closed("Stopped")
+
+    def report(self) -> SessionReport:
+        """Return the report of the session up to now. Call it after :meth:`run` for the complete report."""
+        return self.recorder.report()
 
     async def _send_audio(self, audio_stream: AsyncIterator[bytes]) -> None:
-        async for chunk in audio_stream:
-            if not (chunk := self.audio_filter.process(chunk)):
+        async for raw in audio_stream:
+            chunk = self.audio_filter.process(raw)
+            self.recorder.input_audio(raw, chunk)
+            if not chunk:
                 continue
             self._gate.push_audio(chunk)
             await self.stt.send_audio(chunk)
         logger.info("VoxchainPipeline: Audio stream ended")
+        self.recorder.closed("Audio stream ended")
 
     async def _handle_stt(self) -> None:
         async for event in self.stt.receive_events():
+            self.recorder.stt_event(event)
             match event:
                 case SpeechStarted():
                     await self._on_speech_started()
@@ -174,6 +211,7 @@ class VoxchainPipeline:
             match event:
                 case AudioChunk(data=data):
                     reply = self.replies.audio_received(len(data) / (2 * self.tts.sample_rate))
+                    self.recorder.tts_audio(reply)
                     self.output.play(data, tag=reply)
                 case Flushed():
                     self.replies.synthesized()
@@ -222,6 +260,7 @@ class VoxchainPipeline:
         now = self.clock()
         if self._greeting_protected(now):
             logger.debug(f"VoxchainPipeline: Ignored {text!r} during the greeting")
+            self.recorder.transcript_ignored(text)
             return
         self._awaiting_words = False
         self._recovered = False
@@ -231,6 +270,7 @@ class VoxchainPipeline:
                 heard = self.policy.hear(text, now)
                 if heard is None:
                     logger.debug(f"VoxchainPipeline: Ignored {text!r}, too short to interrupt the agent")
+                    self.recorder.transcript_ignored(text)
                     return
                 text = heard
                 if self._can_interrupt(now):
@@ -245,6 +285,7 @@ class VoxchainPipeline:
             f"VoxchainPipeline: Barge-in (heard {interruption.heard_text!r}, text to resume: "
             f"{interruption.resume_text!r})"
         )
+        self.recorder.barge_in(now, interruption.heard, interruption.heard_text, interruption.cancelled)
         for reply in interruption.cancelled:
             if reply.task:
                 reply.task.cancel()
@@ -276,8 +317,9 @@ class VoxchainPipeline:
                 heard = ""
             try:
                 await correct_turn(self.agent, self.thread_id, reply.text, heard)
-            except Exception:
+            except Exception as error:
                 logger.exception("VoxchainPipeline: Could not correct the agent memory after a barge-in")
+                self.recorder.error(ErrorSource.MEMORY, error)
 
     async def _recover(self) -> None:
         await asyncio.sleep(self.recovery_delay)
@@ -285,7 +327,7 @@ class VoxchainPipeline:
             logger.debug("VoxchainPipeline: Barge-in without a transcript, the agent asks the user to say it again")
             self._awaiting_words = False
             self._recovered = True
-            self._start_reply(self.recovery_prompt, resumable=False)
+            self._start_reply(self.recovery_prompt, TurnKind.RECOVERY)
 
     def _cancel_recovery(self) -> None:
         if self._recovery is not None and not self._recovery.done():
@@ -294,6 +336,7 @@ class VoxchainPipeline:
     def _start_greeting(self, text: str) -> None:
         reply = self.replies.start("", resumable=False)
         self._greeting_reply = reply
+        self.recorder.turn_committed(reply, text, TurnKind.GREETING)
         reply.task = asyncio.create_task(self._speak_greeting(reply, text))
         reply.task.add_done_callback(lambda _: self.replies.finished_generating(reply))
 
@@ -302,13 +345,15 @@ class VoxchainPipeline:
         await self.tts.flush()
         try:
             await remember_reply(self.agent, self.thread_id, text)
-        except Exception:
+        except Exception as error:
             logger.exception("VoxchainPipeline: Could not add the greeting to the agent memory")
+            self.recorder.error(ErrorSource.MEMORY, error)
 
-    def _start_reply(self, text: str, resumable: bool = True) -> None:
+    def _start_reply(self, text: str, kind: TurnKind = TurnKind.USER) -> None:
         logger.debug(f"VoxchainPipeline: User turn {text!r}")
         previous = self.replies.latest
-        reply = self.replies.start(text, resumable=resumable)
+        reply = self.replies.start(text, resumable=kind == TurnKind.USER)
+        self.recorder.turn_committed(reply, text, kind)
         reply.task = asyncio.create_task(self._run_reply(reply, previous.task if previous else None))
         reply.task.add_done_callback(lambda _: self.replies.finished_generating(reply))
 
@@ -317,11 +362,17 @@ class VoxchainPipeline:
         waits = {task for task in (previous, self._memory_sync) if task is not None}
         if waits:
             await asyncio.wait(waits)
+        self.recorder.agent_started(reply)
         segmenter = SentenceSegmenter()
         try:
             async for chunk in stream_agent_text(
-                self.agent, reply.text, self.thread_id, on_tools=lambda n: setattr(reply, "tool_calls", n)
+                self.agent,
+                reply.text,
+                self.thread_id,
+                on_tools=lambda n: setattr(reply, "tool_calls", n),
+                on_message=lambda message: self.recorder.agent_message(reply, message),
             ):
+                self.recorder.agent_text(reply)
                 for sentence in segmenter.push(chunk):
                     await self._speak(reply, sentence)
             for sentence in segmenter.flush():
@@ -329,8 +380,9 @@ class VoxchainPipeline:
         except asyncio.CancelledError:
             logger.debug(f"VoxchainPipeline: Reply cancelled after {' '.join(reply.spoken)!r}")
             raise
-        except Exception:
+        except Exception as error:
             logger.exception("VoxchainPipeline: Agent turn failed")
+            self.recorder.error(ErrorSource.AGENT, error, reply)
         finally:
             reply.tool_calls = 0
         logger.debug(f"VoxchainPipeline: Agent replied {' '.join(reply.spoken)!r}")
@@ -342,7 +394,13 @@ class VoxchainPipeline:
             self.replies.spoke(reply)
         await self.tts.speak(sentence)
         reply.spoken.append(sentence)
+        self.recorder.sentence(reply, sentence)
+
+    def _on_played(self, reply: Reply | None, start: float, end: float, data: bytes) -> None:
+        self.replies.audio_played(reply, start)
+        self.recorder.played(reply, start, end, data)
 
     async def _session_lost(self, provider: str, reason: str) -> None:
         logger.error(f"VoxchainPipeline: {provider} session closed ({reason}), the pipeline stops")
+        self.recorder.closed(f"{provider}: {reason}")
         await self.output.close(f"{provider}: {reason}")

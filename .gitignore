@@ -15,3 +15,6 @@ wheels/
 site/
 # Ruff cache
 .ruff_cache/
+
+# Session reports and audio of the examples
+sessions/

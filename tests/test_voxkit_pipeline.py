@@ -1,7 +1,9 @@
 """VoxchainPipeline: transcripts become spoken replies, and barge-in happens only for real interruptions."""
 
 import asyncio
+from dataclasses import asdict
 
+import pytest
 from langchain_core.messages import AIMessage, ToolMessage
 
 from voxchain import VoxchainPipeline
@@ -442,3 +444,95 @@ async def test_a_merged_turn_replaces_the_early_turn_in_the_agent_memory():
         ("AIMessage", "Booked Bangkok."),
     ]
     await h.stop()
+
+
+async def test_the_report_divides_the_latency_of_a_turn_into_stages():
+    h = Harness()
+    h.agent.hold = asyncio.Event()
+    await h.start()
+    h.now = 1.0
+    await h.say("hi")
+    h.now = 1.3
+    h.agent.hold.set()
+    await settle()
+    h.now = 1.5
+    await h.play(0.5)
+    turn = h.pipeline.report().turns[0]
+    assert asdict(turn.latency) == pytest.approx(
+        {
+            "transcription": 0.0,
+            "end_of_turn": 0.0,
+            "waiting": 0.0,
+            "tools": None,
+            "llm": 0.3,
+            "sentence": 0.0,
+            "tts": 0.2,
+            "playback": 0.0,
+        }
+    )
+    assert turn.e2e_latency == pytest.approx(0.5)
+    assert turn.reply_text == "Hello there, nice to meet you. How can I help you today?"
+    await h.stop()
+
+
+async def test_the_report_keeps_what_the_user_heard_of_an_interrupted_reply_and_the_audio_until_the_barge_in():
+    class HalfFilter:
+        def process(self, pcm):
+            return pcm[: len(pcm) // 2]
+
+    h = Harness(audio_filters=[HalfFilter()])
+    await h.start()
+    h.now = 1.0
+    await h.say("tell me")
+    await h.play(4.0, finished=False)
+    h.now = 3.5  # After the resume window, so the reply counts as heard
+    await h.speak_over("stop")
+    await h.stop()
+
+    report = h.pipeline.report()
+    turn = report.turns[0]
+    assert turn.interrupted
+    assert turn.heard_text == "Hello there, nice to meet you. How"
+    assert "BargeIn" in [type(event).__name__ for event in report.events]
+    assert report.close_reason == "STT: Test over"
+    assert len(report.audio.raw) == 320
+    assert len(report.audio.filtered) == 160  # The input after the filters
+    assert len(report.audio.agent) == 3.5 * 24000 * 2  # Silence until 1 s, then the reply until the barge-in
+
+
+async def test_the_report_counts_the_characters_sent_to_tts_and_the_seconds_of_audio_sent_to_stt():
+    h = Harness()
+    await h.start()
+    await h.say("hi")
+    await h.stop()
+    usage = h.pipeline.report().usage
+    assert usage.tts_characters == len("Hello there, nice to meet you.") + len("How can I help you today?")
+    assert usage.stt_audio_seconds == pytest.approx(320 / 32000)
+
+
+async def test_the_report_has_the_thread_id_and_the_settings_of_the_pipeline():
+    class HalfFilter:
+        def process(self, pcm):
+            return pcm
+
+    h = Harness(thread_id="call-42", interrupt_min_words=2, audio_filters=[HalfFilter()])
+    report = h.pipeline.report()
+    assert report.thread_id == "call-42"
+    assert report.settings["interrupt_min_words"] == 2
+    assert report.settings["audio_filters"] == ["HalfFilter"]
+    assert report.settings["end_of_turn"] is None
+
+
+async def test_a_failed_agent_turn_shows_as_an_error_in_the_report():
+    class FailingAgent:
+        async def astream(self, payload, config, stream_mode):
+            raise RuntimeError("Model down")
+            yield
+
+    h = Harness(agent=FailingAgent())
+    await h.start()
+    await h.say("hi")
+    await h.stop()
+    report = h.pipeline.report()
+    assert report.turns[0].error == "RuntimeError: Model down"
+    assert "ErrorOccurred" in [type(event).__name__ for event in report.events]

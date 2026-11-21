@@ -62,7 +62,10 @@ class RealtimePipeline:
         self._bytes_per_ms = provider.output_sample_rate * 2 / 1000
         self._playback = PlaybackTracker()
         self.output = OutputChannel(
-            callback, sample_rate=provider.output_sample_rate, clock=clock, on_played=self._playback.played
+            callback,
+            sample_rate=provider.output_sample_rate,
+            clock=clock,
+            on_played=lambda tag, start, end, _data: self._playback.played(tag, start, end),
         )
         self._calls: dict[str, list[FunctionCall]] = {}
         self._tool_tasks: set[asyncio.Task] = set()

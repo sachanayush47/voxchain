@@ -20,7 +20,7 @@ Each example is a script that you can run. Each one uses your microphone and spe
 | Example | What it shows | Keys |
 |---|---|---|
 | `sarvam.py` | `VoxchainPipeline`: Sarvam STT, a Groq agent with a time tool, and Sarvam TTS. The Smart Turn model checks the end of each turn. | `SARVAM_API_KEY`, `GROQ_API_KEY` |
-| `sarvam_full.py` | All the features together: Sarvam STT and TTS, a Groq agent, `LoudnessGate` with Hush (or RNNoise without `HUSH_LIBRARY_PATH`), Smart Turn, the barge-in settings and all the output events. | `SARVAM_API_KEY`, `GROQ_API_KEY` |
+| `sarvam_full.py` | All the features together: Sarvam STT and TTS, a Groq agent, `LoudnessGate` with Hush (or RNNoise without `HUSH_LIBRARY_PATH`), Smart Turn, the barge-in settings and all the output events. After the call, it prints the transcript and the latency of each turn, and saves the report and the audio in `sessions/`. | `SARVAM_API_KEY`, `GROQ_API_KEY` |
 | `openai.py` | `VoxchainPipeline`: OpenAI STT (with local Silero VAD), a Groq agent and OpenAI TTS. | `OPENAI_API_KEY`, `GROQ_API_KEY` |
 | `realtime_openai.py` | `RealtimePipeline`: one OpenAI Realtime model that hears, calls a LangChain tool and speaks. It prints the transcripts. | `OPENAI_API_KEY` |
 | `transcribe.py` | STT only: it prints voice activity and transcripts. Use `--provider sarvam` or `--provider openai`. | The key of the provider |

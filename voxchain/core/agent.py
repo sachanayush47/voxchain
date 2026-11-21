@@ -3,7 +3,7 @@
 import logging
 from collections.abc import AsyncIterator, Callable
 
-from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, RemoveMessage, ToolMessage
 from langgraph.graph.state import CompiledStateGraph
 
 logger = logging.getLogger(__name__)
@@ -14,11 +14,13 @@ async def stream_agent_text(
     text: str,
     thread_id: str,
     on_tools: Callable[[int], None] | None = None,
+    on_message: Callable[[BaseMessage], None] | None = None,
 ) -> AsyncIterator[str]:
     """Run one agent turn and yield the reply text as it streams. The function never yields tool output.
 
     ``thread_id`` is the key for the agent's checkpointed memory across turns.
     ``on_tools`` receives the number of tool calls that wait for a result, each time that number changes.
+    ``on_message`` receives each message that the agent streams, for example to record tool calls and usage.
     """
     pending: set[str] = set()
     async for message, _metadata in agent.astream(
@@ -26,6 +28,8 @@ async def stream_agent_text(
         config={"configurable": {"thread_id": thread_id}},
         stream_mode="messages",
     ):
+        if on_message is not None:
+            on_message(message)
         before = len(pending)
         if isinstance(message, AIMessage):
             pending.update(call["id"] for call in message.tool_calls if call.get("id"))

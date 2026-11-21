@@ -13,7 +13,10 @@ class Harness:
         self.received = []
         self.played = []
         self.channel = OutputChannel(
-            self.callback, sample_rate=24000, clock=lambda: self.now, on_played=lambda *args: self.played.append(args)
+            self.callback,
+            sample_rate=24000,
+            clock=lambda: self.now,
+            on_played=lambda *args: self.played.append(args[:3]),
         )
 
     async def callback(self, event):
