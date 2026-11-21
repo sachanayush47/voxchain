@@ -29,6 +29,7 @@ nav:
       - Cascaded pipeline: guides/cascaded.md
       - Speech-to-speech: guides/speech-to-speech.md
       - Providers: guides/providers.md
+      - Audio filters: guides/audio-filters.md
   - Architecture: architecture.md
   - Contributing: contributing.md
   - API Reference:
@@ -38,6 +39,7 @@ nav:
       - TTS: reference/tts.md
       - End-of-turn detection: reference/turn.md
       - Voice activity detection: reference/vad.md
+      - Audio filters: reference/filters.md
       - Sessions, protocols, audio: reference/shared.md
 
 plugins:

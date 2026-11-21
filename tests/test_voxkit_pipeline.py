@@ -383,14 +383,14 @@ async def test_a_transcript_after_the_barge_in_cancels_the_recovery():
     await h.stop()
 
 
-async def test_the_audio_filter_cleans_audio_before_stt():
+async def test_the_audio_filters_clean_audio_one_after_another_before_stt():
     class HalfFilter:
         def process(self, pcm):
             return pcm[: len(pcm) // 2]
 
-    h = Harness(audio_filter=HalfFilter())
+    h = Harness(audio_filters=[HalfFilter(), HalfFilter()])
     await h.start()
-    assert h.stt.audio == 160
+    assert h.stt.audio == 80
     await h.stop()
 
 

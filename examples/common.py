@@ -34,17 +34,28 @@ logger = logging.getLogger("examples")
 def options(description: str) -> argparse.Namespace:
     """Read the command line options that all conversation examples share."""
     parser = argparse.ArgumentParser(description=description)
-    parser.add_argument("--denoise", action="store_true", help="Remove background noise with RNNoise before STT")
+    parser.add_argument(
+        "--filter",
+        action="append",
+        default=[],
+        choices=["rnnoise", "hush", "loudness"],
+        help="Clean the microphone audio with this filter. Repeat it to chain filters in that order",
+    )
     return parser.parse_args()
 
 
-def noise_filter(enabled: bool) -> AudioFilter | None:
-    """Return an RNNoise filter for the microphone audio if ``enabled``, or ``None``."""
-    if not enabled:
-        return None
-    from voxchain.filters import RNNoiseFilter
+def audio_filters(names: list[str]) -> list[AudioFilter]:
+    """Return the audio filters for the microphone audio, in the order of ``names``."""
+    from voxchain.filters import HushFilter, LoudnessGate, RNNoiseFilter
 
-    return RNNoiseFilter(sample_rate=MIC_RATE)
+    if "hush" in names:
+        require("HUSH_LIBRARY_PATH")
+    filters = {
+        "rnnoise": lambda: RNNoiseFilter(sample_rate=MIC_RATE),
+        "hush": lambda: HushFilter(library_path=os.environ["HUSH_LIBRARY_PATH"], sample_rate=MIC_RATE),
+        "loudness": lambda: LoudnessGate(sample_rate=MIC_RATE),
+    }
+    return [filters[name]() for name in names]
 
 
 def setup(level: int = logging.DEBUG) -> None:

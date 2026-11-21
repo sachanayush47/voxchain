@@ -69,8 +69,17 @@ The settings that people usually change on [`OpenAIRealtimeProvider`][voxchain.r
 
 ## Background noise
 
-The OpenAI server decides barge-in for this pipeline, from voice activity. Thus the word-based barge-in of the [cascaded pipeline](cascaded.md#barge-in) does not apply. These settings help against noise:
+The [audio filters](audio-filters.md) work with this pipeline too. They clean the audio before the provider hears it:
+
+```python
+from voxchain.filters import HushFilter
+
+pipeline = RealtimePipeline(
+    provider, play, input_sample_rate=16000, audio_filters=[HushFilter(library_path="libweya_nc.dylib")]
+)
+```
+
+The server of the provider decides barge-in for this pipeline, from voice activity. Thus the word-based barge-in of the [cascaded pipeline](cascaded.md#barge-in) does not apply, and a filter is the main protection against noise. `OpenAIRealtimeProvider` also has these settings:
 
 - `noise_reduction="near_field"` (headphones or a close microphone) or `"far_field"` (a laptop microphone).
 - `eagerness="low"` with `semantic_vad`, so that the model waits longer before it decides that the user spoke.
-- `audio_filter=RNNoiseFilter(sample_rate=16000)` on `RealtimePipeline` removes steady noise before OpenAI hears it. It needs `pip install "voxchain[noise]"`.

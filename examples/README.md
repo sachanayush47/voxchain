@@ -20,6 +20,7 @@ Each example is a script that you can run. Each one uses your microphone and spe
 | Example | What it shows | Keys |
 |---|---|---|
 | `sarvam.py` | `VoxchainPipeline`: Sarvam STT, a Groq agent with a time tool, and Sarvam TTS. The Smart Turn model checks the end of each turn. | `SARVAM_API_KEY`, `GROQ_API_KEY` |
+| `sarvam_full.py` | All the features together: Sarvam STT and TTS, a Groq agent, `LoudnessGate` with Hush (or RNNoise without `HUSH_LIBRARY_PATH`), Smart Turn, the barge-in settings and all the output events. | `SARVAM_API_KEY`, `GROQ_API_KEY` |
 | `openai.py` | `VoxchainPipeline`: OpenAI STT (with local Silero VAD), a Groq agent and OpenAI TTS. | `OPENAI_API_KEY`, `GROQ_API_KEY` |
 | `realtime_openai.py` | `RealtimePipeline`: one OpenAI Realtime model that hears, calls a LangChain tool and speaks. It prints the transcripts. | `OPENAI_API_KEY` |
 | `transcribe.py` | STT only: it prints voice activity and transcripts. Use `--provider sarvam` or `--provider openai`. | The key of the provider |
@@ -29,10 +30,21 @@ Run an example as a module from the repo root. Do not run the file directly (`uv
 
 ```bash
 uv run -m examples.sarvam
+uv run -m examples.sarvam_full
 uv run -m examples.transcribe --provider openai
 ```
 
-Add `--denoise` to `sarvam.py` or `openai.py` to remove background noise with RNNoise before STT.
+Add `--filter` to `sarvam.py`, `openai.py` or `realtime_openai.py` to clean the microphone audio. Repeat it to chain filters in that order:
+
+```bash
+uv run -m examples.openai --filter loudness --filter hush
+```
+
+| Filter | What it removes |
+|---|---|
+| `rnnoise` | Steady background noise (fans, traffic, hum) |
+| `hush` | Background noise and other voices. Set `HUSH_LIBRARY_PATH` to the `weya_nc` library (see `HushFilter`) |
+| `loudness` | Audio much quieter than your voice, for example a person across the room |
 
 Ask "What time is it?" to see the agent call its tool. Speak while the agent speaks to see barge-in. Press Ctrl+C to stop.
 

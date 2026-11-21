@@ -3,6 +3,7 @@
 import asyncio
 import json
 
+import pytest
 from langchain_core.tools import tool
 
 from voxchain.output import PlayAudio
@@ -72,7 +73,7 @@ class ScriptedProvider(RealtimeProvider):
 
 
 class Harness:
-    def __init__(self, *, tools=(), block_audio=False):
+    def __init__(self, *, tools=(), block_audio=False, **kwargs):
         self.provider = ScriptedProvider()
         self.received = []
         self.now = 0.0
@@ -95,6 +96,7 @@ class Harness:
             input_sample_rate=16000,
             on_transcript=on_transcript,
             clock=lambda: self.now,
+            **kwargs,
         )
         self.mic_done = asyncio.Event()
 
@@ -292,6 +294,17 @@ async def test_the_pipeline_stops_when_the_audio_stream_ends():
     h.mic_done.set()
     await asyncio.wait_for(h.task, 1)
     assert ("disconnect",) in h.provider.calls
+
+
+async def test_the_audio_filters_clean_audio_before_the_provider():
+    class HalfFilter:
+        def process(self, pcm):
+            return pcm[: len(pcm) // 2]
+
+    h = Harness(audio_filters=[HalfFilter(), HalfFilter()])
+    await h.start()
+    assert h.provider.audio_in == pytest.approx(3 * 80 * 1.5, abs=4)  # 16 kHz becomes 24 kHz for the provider
+    await h.stop()
 
 
 async def test_a_failing_callback_does_not_stop_playback():

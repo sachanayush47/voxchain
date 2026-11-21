@@ -1,7 +1,19 @@
 """Small audio helpers that providers share."""
 
+import math
 import sys
 from array import array
+
+SILENT_DB = -100.0
+
+
+def rms_db(pcm: bytes) -> float:
+    """Return the RMS level of PCM16 audio in dBFS. Full scale is 0, and silence is ``SILENT_DB``."""
+    samples = array("h", pcm)
+    if not samples:
+        return SILENT_DB
+    rms = math.sqrt(sum(sample * sample for sample in samples) / len(samples)) / 32768
+    return max(SILENT_DB, 20 * math.log10(rms)) if rms > 0 else SILENT_DB
 
 
 class PCM16Resampler:

@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import time
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 
 from langgraph.graph.state import CompiledStateGraph
 
@@ -12,7 +12,7 @@ from voxchain.core.interruptions import InterruptionPolicy
 from voxchain.core.replies import Interruption, Reply, ReplyTracker
 from voxchain.core.text import SentenceSegmenter
 from voxchain.core.turn_gate import EndOfTurnGate
-from voxchain.filters import AudioFilter
+from voxchain.filters import AudioFilter, FilterChain
 from voxchain.output import Output, OutputChannel
 from voxchain.session import SessionClosed
 from voxchain.stt import FinalTranscript, PartialTranscript, SpeechStarted, SpeechStopped, STTProvider
@@ -58,9 +58,9 @@ class VoxchainPipeline:
       to say it again. ``None`` turns this off.
 
     An ``end_of_turn`` detector holds transcripts that sound incomplete for a
-    maximum of ``end_of_turn_timeout`` seconds. ``audio_filter`` cleans the
-    input audio before STT, for example
-    :class:`~voxchain.filters.RNNoiseFilter`. ``thread_id`` is the key for the
+    maximum of ``end_of_turn_timeout`` seconds. ``audio_filters`` clean the
+    input audio one after another before STT (see :mod:`voxchain.filters`).
+    ``thread_id`` is the key for the
     agent's checkpointed memory. A pipeline runs once.
     """
 
@@ -80,7 +80,7 @@ class VoxchainPipeline:
         recovery_delay: float = 1.5,
         end_of_turn: EndOfTurnDetector | None = None,
         end_of_turn_timeout: float = 2.0,
-        audio_filter: AudioFilter | None = None,
+        audio_filters: Sequence[AudioFilter] = (),
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         if end_of_turn_timeout < 0:
@@ -98,7 +98,7 @@ class VoxchainPipeline:
         self.policy = InterruptionPolicy(min_words=interrupt_min_words) if interrupt_min_words else None
         self.recovery_prompt = recovery_prompt
         self.recovery_delay = recovery_delay
-        self.audio_filter = audio_filter
+        self.audio_filter = FilterChain(audio_filters)
         self.clock = clock
 
         self.replies = ReplyTracker(resume_window)
@@ -148,10 +148,8 @@ class VoxchainPipeline:
 
     async def _send_audio(self, audio_stream: AsyncIterator[bytes]) -> None:
         async for chunk in audio_stream:
-            if self.audio_filter is not None:
-                chunk = self.audio_filter.process(chunk)
-                if not chunk:
-                    continue
+            if not (chunk := self.audio_filter.process(chunk)):
+                continue
             self._gate.push_audio(chunk)
             await self.stt.send_audio(chunk)
         logger.info("VoxchainPipeline: Audio stream ended")

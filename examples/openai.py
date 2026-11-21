@@ -1,12 +1,12 @@
 """Talk to a Groq agent through OpenAI STT and OpenAI TTS.
 
-Run: uv run -m examples.openai [--denoise]   (needs OPENAI_API_KEY and GROQ_API_KEY)
+Run: uv run -m examples.openai [--filter NAME ...]   (needs OPENAI_API_KEY and GROQ_API_KEY)
 """
 
 import asyncio
 import os
 
-from examples.common import GREETING, MIC_RATE, Speaker, groq_agent, microphone, noise_filter, options, require, setup
+from examples.common import GREETING, MIC_RATE, Speaker, audio_filters, groq_agent, microphone, options, require, setup
 from voxchain import OpenAISTTProvider, OpenAITTSProvider, VoxchainPipeline
 
 
@@ -21,7 +21,7 @@ async def main() -> None:
     )
     with Speaker(tts.sample_rate) as speaker:
         pipeline = VoxchainPipeline(
-            stt, tts, groq_agent(), speaker.play, greeting=GREETING, audio_filter=noise_filter(args.denoise)
+            stt, tts, groq_agent(), speaker.play, greeting=GREETING, audio_filters=audio_filters(args.filter)
         )
         print("Speak into your microphone. Press Ctrl+C to stop.")
         await pipeline.run(microphone())

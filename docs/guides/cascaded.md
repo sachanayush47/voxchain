@@ -34,7 +34,7 @@ VoxchainPipeline(
     recovery_delay=1.5,
     end_of_turn=None,
     end_of_turn_timeout=2.0,
-    audio_filter=None,
+    audio_filters=(),
 )
 ```
 
@@ -44,7 +44,7 @@ VoxchainPipeline(
 - `interrupt`: set `False` to let replies complete. The user then cannot interrupt the agent.
 - `interrupt_min_words`, `resume_window`, `recovery_prompt` and `recovery_delay`: see [Barge-in](#barge-in).
 - `end_of_turn` and `end_of_turn_timeout`: see [End-of-turn check](#end-of-turn-check).
-- `audio_filter`: cleans the microphone audio before STT. See [Background noise](#background-noise).
+- `audio_filters`: filters that clean the microphone audio one after another before STT. See [Audio filters](audio-filters.md).
 
 ## Barge-in
 
@@ -78,19 +78,19 @@ After a barge-in, the agent's memory keeps only the part of the reply that the u
 
 With voice activity barge-in, a cough can stop the agent and give no transcript. Then the agent waits in silence. After `recovery_delay` seconds (default 1.5) without a transcript, the agent receives `recovery_prompt` and asks the user to say it again. This occurs only one time in a row. Set `recovery_prompt=None` to turn it off.
 
-## Background noise
+## Background noise and far voices
 
-Words decide barge-in, but noise can still cause wrong transcripts. These settings help:
-
-- `audio_filter=RNNoiseFilter()` removes steady noise (fans, traffic, hum) from the microphone audio before STT. It needs `pip install "voxchain[noise]"`. It removes music and other voices less well.
-- `OpenAISTTProvider` ignores audio quieter than `vad_min_volume_db` (default -50 dBFS). For Sarvam STT, set `start_speech_volume_threshold` (dB) in `extra_params`.
-- Use headphones, or audio capture with echo cancellation. If you do not, the agent can hear itself.
+Words decide barge-in, but background sound can still give transcripts. A TV or a person across the room can then interrupt the agent. [Audio filters](audio-filters.md) remove that sound before STT, with any STT provider:
 
 ```python
-from voxchain.filters import RNNoiseFilter
+from voxchain.filters import HushFilter, LoudnessGate
 
-pipeline = VoxchainPipeline(stt, tts, agent, play, audio_filter=RNNoiseFilter(sample_rate=16000))
+pipeline = VoxchainPipeline(
+    stt, tts, agent, play, audio_filters=[LoudnessGate(), HushFilter(library_path="libweya_nc.dylib")]
+)
 ```
+
+Use headphones, or audio capture with echo cancellation. If you do not, the agent can hear itself.
 
 ## End-of-turn check
 

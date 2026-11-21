@@ -1,17 +1,4 @@
-"""Filters that clean the input audio before voice detection and STT, for example noise suppression."""
-
-from typing import Protocol
-
-
-class AudioFilter(Protocol):
-    """Anything that changes PCM16 input audio chunk by chunk, such as :class:`RNNoiseFilter`.
-
-    The output can be shorter or longer than the input, because a filter can buffer audio.
-    """
-
-    def process(self, pcm: bytes) -> bytes:
-        """Return the filtered audio for ``pcm``."""
-        ...
+"""A filter that removes steady background noise with RNNoise."""
 
 
 class RNNoiseFilter:

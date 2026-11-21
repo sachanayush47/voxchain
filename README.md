@@ -30,7 +30,8 @@ pip install voxchain
 |---|---|---|
 | `vad` | `onnxruntime`, `huggingface-hub`, `numpy` | `OpenAISTTProvider`, which runs Silero voice detection locally |
 | `smart-turn` | `onnxruntime`, `transformers`, `huggingface-hub`, `numpy` | [End-of-turn check](#end-of-turn-check) (`PipecatSmartTurnDetector`) |
-| `noise` | `pyrnnoise` | [Noise filter](#background-noise) (`RNNoiseFilter`) |
+| `noise` | `pyrnnoise` | [RNNoise filter](#audio-filters) (`RNNoiseFilter`) |
+| `hush` | `huggingface-hub`, `numpy` | [Hush filter](#audio-filters) (`HushFilter`) |
 | `all` | all of the above | all features |
 
 You must have Python 3.13 or later.
@@ -69,7 +70,7 @@ async def main() -> None:
 asyncio.run(main())
 ```
 
-The [`examples/`](https://github.com/sachanayush47/voxchain/tree/master/examples) folder has complete versions that you can run, with your microphone and speakers. There is one example for each pipeline and provider, and STT-only and TTS-only examples. For example, run `uv run -m examples.sarvam` or `uv run -m examples.realtime_openai`.
+The [`examples/`](https://github.com/sachanayush47/voxchain/tree/master/examples) folder has complete versions that you can run, with your microphone and speakers. There is one example for each pipeline and provider, one example with all the features (`sarvam_full.py`), and STT-only and TTS-only examples. For example, run `uv run -m examples.sarvam` or `uv run -m examples.realtime_openai`.
 
 ### What your callback receives
 
@@ -140,13 +141,25 @@ The pipeline decides from the **words** of the user, not from voice activity, wh
 
 Set `interrupt_min_words=0` to interrupt on voice activity, or `interrupt=False` to let replies complete. A partial transcript (for example from `OpenAISTTProvider(include_partials=True)`) interrupts as soon as it has enough words. Sarvam STT sends only final transcripts, so a barge-in comes after a short pause in the speech of the user.
 
-### Background noise
+### Audio filters
 
-Words decide barge-in, but noise can still cause wrong transcripts. These settings help:
+Words decide barge-in, but background sound can still give transcripts. A TV or a person across the room can then interrupt the agent. Audio filters remove that sound before any provider hears it. They work with both pipelines and with each provider. The pipeline runs them one after another, in the order of the list:
 
-- `audio_filter=RNNoiseFilter()` (`from voxchain.filters import RNNoiseFilter`) removes steady background noise from the microphone audio before STT. It needs `pip install "voxchain[noise]"`, and it works with both pipelines.
-- `OpenAISTTProvider` ignores audio quieter than `vad_min_volume_db`. For Sarvam STT, set `start_speech_volume_threshold` (dB) in `extra_params`.
-- Use headphones, or audio capture with echo cancellation. If you do not, the agent can hear itself.
+```python
+from voxchain.filters import HushFilter, LoudnessGate
+
+pipeline = VoxchainPipeline(
+    stt, tts, agent, play, audio_filters=[LoudnessGate(), HushFilter(library_path="libweya_nc.dylib")]
+)
+```
+
+| Filter | It removes | It needs |
+|---|---|---|
+| `HushFilter` | Background noise and other voices (a TV, a person across the room) | `pip install "voxchain[hush]"` and the native `weya_nc` library of the [Hush project](https://github.com/pulp-vision/Hush) |
+| `RNNoiseFilter` | Steady background noise (fans, traffic, hum) | `pip install "voxchain[noise]"` |
+| `LoudnessGate` | Audio much quieter than the voice of the user, for example a far voice | Nothing |
+
+Use one denoiser (`HushFilter` or `RNNoiseFilter`), and put `LoudnessGate` before it. To write your own filter, implement `AudioFilter`: one method, `process(pcm) -> bytes`. Use headphones, or audio capture with echo cancellation. If you do not, the agent can hear itself.
 
 ### End-of-turn check
 
@@ -195,7 +208,7 @@ What the pipeline does:
 
 Common settings: `model` (`"gpt-realtime-2.1"` or the cheaper `-mini`), `voice`, `turn_detection` (`"semantic_vad"` / `"server_vad"`), `interrupt_response`, `noise_reduction` (`"near_field"` / `"far_field"`), `reasoning_effort` (OpenAI recommends `"low"`), and `truncation` (for example, `0.8` keeps 80% of the context when OpenAI trims it). `PipecatSmartTurnDetector` does not apply to this pipeline.
 
-With each pipeline, use headphones or audio capture with echo cancellation. If you do not, the agent can hear itself and interrupt its own reply. `RealtimePipeline` also takes an `audio_filter`. The OpenAI server decides barge-in for this pipeline, so `noise_reduction` and a lower `eagerness` (for example `"low"`) are the other settings against noise.
+`RealtimePipeline` also takes `audio_filters` (see [Audio filters](#audio-filters)). The server of the provider decides barge-in for this pipeline, from voice activity. Thus a filter is the main protection against noise. `OpenAIRealtimeProvider` also has `noise_reduction` and `eagerness` (for example `"low"`).
 
 ## Logs
 

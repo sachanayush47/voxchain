@@ -7,8 +7,8 @@ import pytest
 
 pytest.importorskip("pyrnnoise")
 
+from voxchain.audio import rms_db
 from voxchain.filters import RNNoiseFilter
-from voxchain.vad.gate import rms_db
 
 
 def test_steady_noise_becomes_much_quieter():

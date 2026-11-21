@@ -1,10 +1,11 @@
 """Cuts a PCM16 stream into speech segments with a local model for voice activity."""
 
 import math
-from array import array
 from collections import deque
 from dataclasses import dataclass
 from typing import Protocol
+
+from voxchain.audio import SILENT_DB, rms_db
 
 # Silero recommends this hysteresis: a window is silence only if it scores well below the speech threshold.
 NEGATIVE_THRESHOLD_GAP = 0.15
@@ -12,16 +13,6 @@ NEGATIVE_THRESHOLD_GAP = 0.15
 # "stop" is not lost, and it falls slowly, so that short pauses inside speech keep the gate open.
 VOLUME_WINDOW_MS = 400
 VOLUME_RELEASE = 0.2
-SILENT_DB = -100.0
-
-
-def rms_db(pcm: bytes) -> float:
-    """Return the RMS level of PCM16 audio in dBFS. Full scale is 0, and silence is ``SILENT_DB``."""
-    samples = array("h", pcm)
-    if not samples:
-        return SILENT_DB
-    rms = math.sqrt(sum(sample * sample for sample in samples) / len(samples)) / 32768
-    return max(SILENT_DB, 20 * math.log10(rms)) if rms > 0 else SILENT_DB
 
 
 class VoiceActivityModel(Protocol):

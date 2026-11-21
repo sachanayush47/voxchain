@@ -1,12 +1,12 @@
 """Talk to one OpenAI Realtime speech-to-speech model that can call a LangChain tool.
 
-Run: uv run -m examples.realtime_openai [--denoise]   (needs OPENAI_API_KEY)
+Run: uv run -m examples.realtime_openai [--filter NAME ...]   (needs OPENAI_API_KEY)
 """
 
 import asyncio
 import os
 
-from examples.common import MIC_RATE, Speaker, get_current_time, microphone, noise_filter, options, require, setup
+from examples.common import MIC_RATE, Speaker, audio_filters, get_current_time, microphone, options, require, setup
 from voxchain import OpenAIRealtimeProvider, RealtimePipeline
 
 INSTRUCTIONS = """# Role and Objective
@@ -42,7 +42,7 @@ async def main() -> None:
             tools=[get_current_time],
             input_sample_rate=MIC_RATE,
             on_transcript=show_transcript,
-            audio_filter=noise_filter(args.denoise),
+            audio_filters=audio_filters(args.filter),
         )
         print("Speak into your microphone. Press Ctrl+C to stop.")
         await pipeline.run(microphone())

@@ -8,7 +8,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
 from langchain_core.tools import BaseTool
 
 from voxchain.audio import PCM16Resampler
-from voxchain.filters import AudioFilter
+from voxchain.filters import AudioFilter, FilterChain
 from voxchain.output import Output, OutputChannel
 from voxchain.realtime.base import RealtimeProvider
 from voxchain.realtime.events import (
@@ -36,9 +36,9 @@ class RealtimePipeline:
     a callback that blocks on playback never delays a barge-in. At a barge-in, the
     pipeline cuts the conversation to the part that the user heard (see
     :class:`~voxchain.realtime.playback.PlaybackTracker`). It does not run the tool
-    calls from the interrupted response. ``audio_filter`` cleans the input audio
-    before the provider hears it, for example :class:`~voxchain.filters.RNNoiseFilter`
-    at ``input_sample_rate``. A pipeline runs once.
+    calls from the interrupted response. ``audio_filters`` clean the input audio
+    one after another before the provider hears it (see :mod:`voxchain.filters`).
+    They receive audio at ``input_sample_rate``. A pipeline runs once.
     """
 
     def __init__(
@@ -49,11 +49,11 @@ class RealtimePipeline:
         tools: Sequence[BaseTool] = (),
         input_sample_rate: int = 16000,
         on_transcript: Callable[[str, str], Awaitable[None]] | None = None,
-        audio_filter: AudioFilter | None = None,
+        audio_filters: Sequence[AudioFilter] = (),
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self.provider = provider
-        self.audio_filter = audio_filter
+        self.audio_filter = FilterChain(audio_filters)
         self.on_transcript = on_transcript
         self.clock = clock
         self.tools = ToolRunner(tools)
@@ -91,9 +91,7 @@ class RealtimePipeline:
 
     async def _send_audio(self, audio_stream: AsyncIterator[bytes]) -> None:
         async for chunk in audio_stream:
-            if self.audio_filter is not None:
-                chunk = self.audio_filter.process(chunk)
-            if pcm := self._resampler.process(chunk):
+            if pcm := self._resampler.process(self.audio_filter.process(chunk)):
                 await self.provider.send_audio(pcm)
         logger.info("RealtimePipeline: Audio stream ended")
 

@@ -42,7 +42,7 @@ audio in ──▶ RealtimeProvider (hears, reasons, speaks) ──▶ RealtimeP
     - [`LiveSocket`][voxchain.session.LiveSocket] holds the current socket. During a reconnect, its sends either discard the data (audio) or wait for the new socket (tool results, text to speak).
 - [`OutputChannel`][voxchain.output.OutputChannel] delivers the client events of both pipelines from their own task. It calculates when each chunk plays and tells the tracker of the pipeline.
 - [`VoiceGate`][voxchain.vad.gate.VoiceGate] changes the probabilities of a local VAD into speech segments. It is for providers whose vendor does not report voice activity. Its loudness gate ignores quiet background sound.
-- An [`AudioFilter`][voxchain.filters.AudioFilter], for example [`RNNoiseFilter`][voxchain.filters.RNNoiseFilter], cleans the input audio of both pipelines before the provider hears it.
+- A [`FilterChain`][voxchain.filters.base.FilterChain] runs the [audio filters](guides/audio-filters.md) of both pipelines one after another, before any provider hears the audio. Each filter implements [`AudioFilter`][voxchain.filters.base.AudioFilter].
 - `voxchain/protocols/` contains the wire vocabulary of each vendor: URLs, message types as `StrEnum`s, and handshakes.
 
 ## Connection loss and logs
