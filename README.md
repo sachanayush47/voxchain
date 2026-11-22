@@ -1,7 +1,7 @@
 # voxchain
 
 [![PyPI](https://img.shields.io/pypi/v/voxchain)](https://pypi.org/project/voxchain/)
-[![Python](https://img.shields.io/pypi/pyversions/voxchain)](https://pypi.org/project/voxchain/)
+[![Python](https://img.shields.io/badge/python-3.12%2B-blue)](https://pypi.org/project/voxchain/)
 [![PyPI Downloads](https://static.pepy.tech/personalized-badge/voxchain?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/voxchain)
 [![License](https://img.shields.io/pypi/l/voxchain)](https://github.com/sachanayush47/voxchain/blob/master/LICENSE)
 
@@ -35,7 +35,7 @@ pip install voxchain
 | `hush` | `huggingface-hub`, `numpy` | [Hush filter](#audio-filters) (`HushFilter`) |
 | `all` | all of the above | all features |
 
-You must have Python 3.13 or later.
+You must have Python 3.12 or later.
 
 ## Quick start
 

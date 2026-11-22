@@ -26,7 +26,7 @@ pip install voxchain
 | `hush` | `huggingface-hub`, `numpy` | The [Hush filter](guides/audio-filters.md#hushfilter) ([`HushFilter`][voxchain.filters.hush.HushFilter]) |
 | `all` | all of the above | all features |
 
-You must have Python 3.13 or later.
+You must have Python 3.12 or later.
 
 ## Quick start
 
