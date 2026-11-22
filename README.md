@@ -2,6 +2,7 @@
 
 [![PyPI](https://img.shields.io/pypi/v/voxchain)](https://pypi.org/project/voxchain/)
 [![Python](https://img.shields.io/pypi/pyversions/voxchain)](https://pypi.org/project/voxchain/)
+[![PyPI Downloads](https://static.pepy.tech/personalized-badge/voxchain?period=total&units=INTERNATIONAL_SYSTEM&left_color=BLACK&right_color=GREEN&left_text=downloads)](https://pepy.tech/projects/voxchain)
 [![License](https://img.shields.io/pypi/l/voxchain)](https://github.com/sachanayush47/voxchain/blob/master/LICENSE)
 
 A thin, event-driven Python library to build real-time voice agents on **LangChain / LangGraph**.
